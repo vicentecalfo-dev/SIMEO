@@ -3,8 +3,10 @@ import type { Project } from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import { getProjectUseCase } from "@/domain/usecases/projects/get-project";
 import { updateProject } from "@/domain/usecases/projects/update-project";
-import { computeAOO as computeAooUseCase } from "@/domain/usecases/aoo/compute-aoo";
-import { computeEOO as computeEooUseCase } from "@/domain/usecases/eoo/compute-eoo";
+import {
+  computeAOOAsync,
+  computeEOOAsync,
+} from "@/infrastructure/geo/geo-compute-service";
 import { createProjectRepository } from "@/infrastructure/storage/dexie-project-repository";
 
 function toErrorMessage(error: unknown): string {
@@ -22,8 +24,8 @@ export interface WorkspaceState {
   isDirty: boolean;
   loadProject: (id: string) => Promise<void>;
   setProject: (partialUpdate: Partial<Project>) => void;
-  computeAOO: () => void;
-  computeEOO: () => void;
+  computeAOO: () => Promise<void>;
+  computeEOO: () => Promise<void>;
   saveProject: () => Promise<void>;
   resetDirty: () => void;
 }
@@ -90,52 +92,72 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
           };
         });
       },
-      computeEOO() {
-        set((state) => {
-          if (!state.project) {
-            return state;
-          }
+      async computeEOO() {
+        const current = get().project;
 
-          const eooResult = computeEooUseCase({
-            occurrences: state.project.occurrences,
-          });
+        if (!current) {
+          return;
+        }
 
-          return {
-            project: {
-              ...state.project,
-              results: {
-                ...state.project.results,
-                eoo: eooResult,
+        try {
+          const eooResult = await computeEOOAsync(current.occurrences);
+
+          set((state) => {
+            if (!state.project || state.project.id !== current.id) {
+              return state;
+            }
+
+            return {
+              project: {
+                ...state.project,
+                results: {
+                  ...state.project.results,
+                  eoo: eooResult,
+                },
               },
-            },
-            isDirty: true,
-            error: undefined,
-          };
-        });
+              isDirty: true,
+              error: undefined,
+            };
+          });
+        } catch (error) {
+          set({ error: toErrorMessage(error) });
+          throw error;
+        }
       },
-      computeAOO() {
-        set((state) => {
-          if (!state.project) {
-            return state;
-          }
+      async computeAOO() {
+        const current = get().project;
 
-          const aooResult = computeAooUseCase({
-            occurrences: state.project.occurrences,
-            cellSizeMeters: state.project.settings.aooCellSizeMeters,
-          });
+        if (!current) {
+          return;
+        }
 
-          return {
-            project: {
-              ...state.project,
-              results: {
-                ...state.project.results,
-                aoo: aooResult,
+        try {
+          const aooResult = await computeAOOAsync(
+            current.occurrences,
+            current.settings.aooCellSizeMeters,
+          );
+
+          set((state) => {
+            if (!state.project || state.project.id !== current.id) {
+              return state;
+            }
+
+            return {
+              project: {
+                ...state.project,
+                results: {
+                  ...state.project.results,
+                  aoo: aooResult,
+                },
               },
-            },
-            isDirty: true,
-            error: undefined,
-          };
-        });
+              isDirty: true,
+              error: undefined,
+            };
+          });
+        } catch (error) {
+          set({ error: toErrorMessage(error) });
+          throw error;
+        }
       },
       async saveProject() {
         const current = get().project;

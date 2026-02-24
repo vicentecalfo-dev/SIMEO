@@ -15,11 +15,18 @@ import {
   dedupeOccurrences,
   removeInvalid,
 } from "@/domain/usecases/occurrences/clean-occurrences";
+import {
+  filterOccurrences,
+  paginate,
+  type OccurrenceValidityFilter,
+} from "@/domain/usecases/occurrences/query-occurrences";
 import { isAooStale } from "@/domain/usecases/aoo/is-aoo-stale";
 import { formatKm2 } from "@/domain/usecases/eoo/compute-eoo";
 import { isEooStale } from "@/domain/usecases/eoo/is-eoo-stale";
 import { validateLatLon } from "@/domain/value-objects/latlon";
+import { debounce } from "@/lib/debounce";
 import { useWorkspaceStore } from "@/state/workspace.store";
+import { ExportPanel } from "@/ui/components/export/ExportPanel";
 
 const WorkspaceMapPanel = dynamic(
   () =>
@@ -36,7 +43,7 @@ const WorkspaceMapPanel = dynamic(
   },
 );
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
 
 type CsvDraft = {
   headers: string[];
@@ -101,33 +108,73 @@ export default function WorkspaceProjectPage() {
   const [lastImportResult, setLastImportResult] = useState<ImportCsvResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [qualityMessage, setQualityMessage] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [occurrenceQuery, setOccurrenceQuery] = useState("");
+  const [occurrenceValidity, setOccurrenceValidity] =
+    useState<OccurrenceValidityFilter>("all");
   const [page, setPage] = useState(1);
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
   const [showOccurrences, setShowOccurrences] = useState(true);
   const [showEOO, setShowEOO] = useState(false);
   const [showAOO, setShowAOO] = useState(false);
+  const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  const debouncedSave = useMemo(
+    () =>
+      debounce(() => {
+        void (async () => {
+          setSavingState("saving");
+
+          try {
+            await saveProject();
+            setSavingState("saved");
+          } catch {
+            setSavingState("error");
+          }
+        })();
+      }, 500),
+    [saveProject],
+  );
 
   useEffect(() => {
     void loadProject(projectId).catch(() => undefined);
   }, [loadProject, projectId]);
 
   useEffect(() => {
-    if (!isDirty || Boolean(error)) {
+    setSavingState("idle");
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!project) {
+      debouncedSave.cancel();
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      void saveProject().catch(() => undefined);
-    }, 500);
+    if (error) {
+      setSavingState("error");
+      debouncedSave.cancel();
+      return;
+    }
 
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [error, isDirty, project, saveProject]);
+    if (!isDirty) {
+      setSavingState((current) => (current === "error" ? current : "saved"));
+      debouncedSave.cancel();
+      return;
+    }
+
+    setSavingState("saving");
+    debouncedSave.call();
+  }, [debouncedSave, error, isDirty, project]);
+
+  useEffect(
+    () => () => {
+      debouncedSave.cancel();
+    },
+    [debouncedSave],
+  );
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, project?.occurrences.length]);
+  }, [occurrenceQuery, occurrenceValidity, project?.occurrences.length]);
 
   useEffect(() => {
     if (!project) {
@@ -182,31 +229,23 @@ export default function WorkspaceProjectPage() {
       return [];
     }
 
-    const normalizedQuery = searchTerm.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return project.occurrences;
-    }
-
-    return project.occurrences.filter((occurrence) => {
-      const label = (occurrence.label ?? "").toLowerCase();
-      return (
-        label.includes(normalizedQuery) ||
-        occurrence.id.toLowerCase().includes(normalizedQuery)
-      );
+    return filterOccurrences(project.occurrences, {
+      query: occurrenceQuery,
+      validity: occurrenceValidity,
     });
-  }, [project, searchTerm]);
+  }, [occurrenceQuery, occurrenceValidity, project]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredOccurrences.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
+  const paginatedOccurrences = useMemo(
+    () => paginate(filteredOccurrences, page, pageSize),
+    [filteredOccurrences, page, pageSize],
+  );
+  const totalPages = paginatedOccurrences.totalPages;
+  const safePage = paginatedOccurrences.page;
   const eooResult = project?.results?.eoo;
   const aooResult = project?.results?.aoo;
   const canComputeEOO = quality.valid >= 3;
   const canComputeAOO = quality.valid >= 1;
-
-  const pagedOccurrences = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE;
-    return filteredOccurrences.slice(start, start + PAGE_SIZE);
-  }, [filteredOccurrences, safePage]);
+  const pagedOccurrences = paginatedOccurrences.items;
 
   async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -293,24 +332,32 @@ export default function WorkspaceProjectPage() {
     }
   }
 
-  function handleComputeEOO() {
+  async function handleComputeEOO() {
     if (!project) {
       return;
     }
 
-    computeEOO();
-    setShowEOO(true);
-    setQualityMessage("EOO calculada e salva no projeto.");
+    try {
+      await computeEOO();
+      setShowEOO(true);
+      setQualityMessage("EOO calculada e salva no projeto.");
+    } catch {
+      setQualityMessage("Falha ao calcular EOO.");
+    }
   }
 
-  function handleComputeAOO() {
+  async function handleComputeAOO() {
     if (!project) {
       return;
     }
 
-    computeAOO();
-    setShowAOO(true);
-    setQualityMessage("AOO calculada e salva no projeto.");
+    try {
+      await computeAOO();
+      setShowAOO(true);
+      setQualityMessage("AOO calculada e salva no projeto.");
+    } catch {
+      setQualityMessage("Falha ao calcular AOO.");
+    }
   }
 
   function handleRemoveInvalid() {
@@ -356,7 +403,7 @@ export default function WorkspaceProjectPage() {
     );
   }
 
-  if (error) {
+  if (error && !project) {
     return (
       <main className="mx-auto flex min-h-screen w-full flex-col gap-4 px-4 py-10 sm:px-6 lg:px-8">
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -473,7 +520,9 @@ export default function WorkspaceProjectPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={handleComputeEOO}
+              onClick={() => {
+                void handleComputeEOO();
+              }}
               disabled={!canComputeEOO}
               className="w-full justify-center"
             >
@@ -482,7 +531,9 @@ export default function WorkspaceProjectPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={handleComputeAOO}
+              onClick={() => {
+                void handleComputeAOO();
+              }}
               disabled={!canComputeAOO}
               className="w-full justify-center"
             >
@@ -554,10 +605,20 @@ export default function WorkspaceProjectPage() {
 
           <p
             className={`text-sm font-medium ${
-              isDirty ? "text-amber-700" : "text-emerald-700"
+              savingState === "error"
+                ? "text-red-700"
+                : savingState === "saving"
+                  ? "text-amber-700"
+                  : "text-emerald-700"
             }`}
           >
-            {isDirty ? "Salvando..." : "Salvo"}
+            {savingState === "error"
+              ? "Erro ao salvar"
+              : savingState === "saving"
+                ? "Salvando..."
+                : savingState === "saved"
+                  ? "Salvo"
+                  : "Aguardando alterações"}
           </p>
         </aside>
 
@@ -578,6 +639,8 @@ export default function WorkspaceProjectPage() {
               />
             </Card.Main>
           </Card>
+
+          <ExportPanel project={project} />
 
           <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <Card.Header className="text-lg font-semibold text-slate-900">
@@ -815,15 +878,40 @@ export default function WorkspaceProjectPage() {
               </p>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Buscar por label ou id"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-sky-600 focus:ring-2 focus:ring-sky-200 sm:max-w-xs"
-                />
+                <div className="flex w-full flex-col gap-2 sm:max-w-xl">
+                  <input
+                    type="text"
+                    value={occurrenceQuery}
+                    onChange={(event) => setOccurrenceQuery(event.target.value)}
+                    placeholder="Buscar por label"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-sky-600 focus:ring-2 focus:ring-sky-200"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={occurrenceValidity === "all" ? "default" : "outline"}
+                      onClick={() => setOccurrenceValidity("all")}
+                    >
+                      Todas
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={occurrenceValidity === "valid" ? "default" : "outline"}
+                      onClick={() => setOccurrenceValidity("valid")}
+                    >
+                      Somente válidas
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={occurrenceValidity === "invalid" ? "default" : "outline"}
+                      onClick={() => setOccurrenceValidity("invalid")}
+                    >
+                      Somente inválidas
+                    </Button>
+                  </div>
+                </div>
                 <p className="text-xs text-slate-500">
-                  Exibindo {pagedOccurrences.length} de {filteredOccurrences.length} ocorrência(s)
+                  Exibindo {pagedOccurrences.length} de {paginatedOccurrences.totalItems} ocorrência(s)
                 </p>
               </div>
 

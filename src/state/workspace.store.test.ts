@@ -147,7 +147,7 @@ describe("workspace.store", () => {
 
     vi.spyOn(Date, "now").mockReturnValue(333);
 
-    useWorkspaceStore.getState().computeEOO();
+    await useWorkspaceStore.getState().computeEOO();
 
     expect(useWorkspaceStore.getState().isDirty).toBe(true);
     expect(useWorkspaceStore.getState().project?.results?.eoo).toBeDefined();
@@ -172,7 +172,7 @@ describe("workspace.store", () => {
 
     vi.spyOn(Date, "now").mockReturnValue(444);
 
-    useWorkspaceStore.getState().computeAOO();
+    await useWorkspaceStore.getState().computeAOO();
 
     expect(useWorkspaceStore.getState().isDirty).toBe(true);
     expect(useWorkspaceStore.getState().project?.results?.aoo).toBeDefined();
