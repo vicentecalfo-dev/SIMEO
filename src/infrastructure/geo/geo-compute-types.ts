@@ -4,14 +4,14 @@ import type { ComputeEooResult } from "@/domain/usecases/eoo/compute-eoo";
 
 export type GeoWorkerRequest =
   | {
-      requestId: string;
+      id: string;
       type: "eoo";
       payload: {
         occurrences: Occurrence[];
       };
     }
   | {
-      requestId: string;
+      id: string;
       type: "aoo";
       payload: {
         occurrences: Occurrence[];
@@ -19,16 +19,25 @@ export type GeoWorkerRequest =
       };
     };
 
-export type GeoWorkerSuccessResponse = {
-  requestId: string;
-  ok: true;
-  result: ComputeEooResult | ComputeAooResult;
-};
-
-export type GeoWorkerErrorResponse = {
-  requestId: string;
-  ok: false;
-  error: string;
-};
-
-export type GeoWorkerResponse = GeoWorkerSuccessResponse | GeoWorkerErrorResponse;
+export type GeoWorkerResponse =
+  | {
+      id: string;
+      ok: true;
+      type: "eoo";
+      result: ComputeEooResult;
+    }
+  | {
+      id: string;
+      ok: true;
+      type: "aoo";
+      result: ComputeAooResult;
+    }
+  | {
+      id: string;
+      ok: false;
+      type: "eoo" | "aoo";
+      error: {
+        message: string;
+        stack?: string;
+      };
+    };

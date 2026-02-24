@@ -24,6 +24,25 @@ export interface ProjectResults {
   aoo?: AooResult;
 }
 
+export type IucnCriterionBItem = "i" | "ii" | "iii" | "iv" | "v";
+
+export interface IucnCriterionBInput {
+  severelyFragmented?: boolean;
+  numberOfLocations?: number | null;
+  continuingDecline?: {
+    enabled: boolean;
+    items?: IucnCriterionBItem[];
+  };
+  extremeFluctuations?: {
+    enabled: boolean;
+    items?: IucnCriterionBItem[];
+  };
+}
+
+export interface ProjectAssessment {
+  iucnB?: IucnCriterionBInput;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -34,6 +53,7 @@ export interface Project {
   };
   occurrences: Occurrence[];
   results?: ProjectResults;
+  assessment?: ProjectAssessment;
 }
 
 export interface ProjectSummary {
@@ -83,12 +103,54 @@ export function touchProject(project: Project): Project {
 }
 
 export function withProjectDefaults(project: Project): Project {
+  const validIucnItems: IucnCriterionBItem[] = ["i", "ii", "iii", "iv", "v"];
+
+  function normalizeIucnItems(value: unknown): IucnCriterionBItem[] | undefined {
+    if (!Array.isArray(value)) {
+      return undefined;
+    }
+
+    const unique: IucnCriterionBItem[] = [];
+
+    for (const item of value) {
+      if (
+        typeof item === "string" &&
+        validIucnItems.includes(item as IucnCriterionBItem) &&
+        !unique.includes(item as IucnCriterionBItem)
+      ) {
+        unique.push(item as IucnCriterionBItem);
+      }
+    }
+
+    if (unique.length === 0) {
+      return undefined;
+    }
+
+    return unique.sort(
+      (left, right) => validIucnItems.indexOf(left) - validIucnItems.indexOf(right),
+    );
+  }
+
   const maybeProject = project as Project & {
     settings?: { aooCellSizeMeters?: number };
     occurrences?: Occurrence[];
     results?: {
       eoo?: EooResult;
       aoo?: AooResult;
+    };
+    assessment?: {
+      iucnB?: {
+        severelyFragmented?: boolean;
+        numberOfLocations?: number | null;
+        continuingDecline?: {
+          enabled?: boolean;
+          items?: IucnCriterionBItem[];
+        };
+        extremeFluctuations?: {
+          enabled?: boolean;
+          items?: IucnCriterionBItem[];
+        };
+      };
     };
   };
 
@@ -144,6 +206,60 @@ export function withProjectDefaults(project: Project): Project {
     };
   }
 
+  const baseIucnB = maybeProject.assessment?.iucnB;
+  let iucnB: IucnCriterionBInput | undefined;
+
+  if (baseIucnB && typeof baseIucnB === "object") {
+    const normalizedIucnB: IucnCriterionBInput = {};
+
+    if (typeof baseIucnB.severelyFragmented === "boolean") {
+      normalizedIucnB.severelyFragmented = baseIucnB.severelyFragmented;
+    }
+
+    if (baseIucnB.numberOfLocations === null) {
+      normalizedIucnB.numberOfLocations = null;
+    } else if (
+      Number.isFinite(baseIucnB.numberOfLocations) &&
+      Number(baseIucnB.numberOfLocations) >= 0
+    ) {
+      normalizedIucnB.numberOfLocations = Number(baseIucnB.numberOfLocations);
+    }
+
+    if (
+      baseIucnB.continuingDecline &&
+      typeof baseIucnB.continuingDecline === "object"
+    ) {
+      const normalizedItems = normalizeIucnItems(baseIucnB.continuingDecline.items);
+      const enabled = baseIucnB.continuingDecline.enabled === true;
+
+      if (enabled || normalizedItems) {
+        normalizedIucnB.continuingDecline = {
+          enabled,
+          items: normalizedItems,
+        };
+      }
+    }
+
+    if (
+      baseIucnB.extremeFluctuations &&
+      typeof baseIucnB.extremeFluctuations === "object"
+    ) {
+      const normalizedItems = normalizeIucnItems(baseIucnB.extremeFluctuations.items);
+      const enabled = baseIucnB.extremeFluctuations.enabled === true;
+
+      if (enabled || normalizedItems) {
+        normalizedIucnB.extremeFluctuations = {
+          enabled,
+          items: normalizedItems,
+        };
+      }
+    }
+
+    if (Object.keys(normalizedIucnB).length > 0) {
+      iucnB = normalizedIucnB;
+    }
+  }
+
   return {
     ...project,
     settings: {
@@ -163,5 +279,10 @@ export function withProjectDefaults(project: Project): Project {
             aoo: aooResult,
           }
         : undefined,
+    assessment: iucnB
+      ? {
+          iucnB,
+        }
+      : undefined,
   };
 }

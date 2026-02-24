@@ -3,10 +3,7 @@ import type { Project } from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import { getProjectUseCase } from "@/domain/usecases/projects/get-project";
 import { updateProject } from "@/domain/usecases/projects/update-project";
-import {
-  computeAOOAsync,
-  computeEOOAsync,
-} from "@/infrastructure/geo/geo-compute-service";
+import { geoComputeService } from "@/infrastructure/geo/geo-compute-service";
 import { createProjectRepository } from "@/infrastructure/storage/dexie-project-repository";
 
 function toErrorMessage(error: unknown): string {
@@ -22,6 +19,9 @@ export interface WorkspaceState {
   isLoading: boolean;
   error?: string;
   isDirty: boolean;
+  isComputingEOO: boolean;
+  isComputingAOO: boolean;
+  computeError?: string;
   loadProject: (id: string) => Promise<void>;
   setProject: (partialUpdate: Partial<Project>) => void;
   computeAOO: () => Promise<void>;
@@ -47,12 +47,26 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
       isLoading: false,
       error: undefined,
       isDirty: false,
+      isComputingEOO: false,
+      isComputingAOO: false,
+      computeError: undefined,
       async loadProject(id: string) {
-        set({ isLoading: true, error: undefined });
+        set({
+          isLoading: true,
+          error: undefined,
+          computeError: undefined,
+          isComputingEOO: false,
+          isComputingAOO: false,
+        });
 
         try {
           const project = await getProjectUseCase(resolveRepo(), id);
-          set({ project, isLoading: false, isDirty: false });
+          set({
+            project,
+            isLoading: false,
+            isDirty: false,
+            computeError: undefined,
+          });
         } catch (error) {
           set({ error: toErrorMessage(error), isLoading: false });
           throw error;
@@ -83,12 +97,41 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
                     ...partialUpdate.results,
                   }
                 : state.project.results,
+            assessment:
+              partialUpdate.assessment !== undefined
+                ? {
+                    ...state.project.assessment,
+                    ...partialUpdate.assessment,
+                    iucnB:
+                      partialUpdate.assessment.iucnB !== undefined
+                        ? {
+                            ...state.project.assessment?.iucnB,
+                            ...partialUpdate.assessment.iucnB,
+                            continuingDecline:
+                              partialUpdate.assessment.iucnB.continuingDecline !== undefined
+                                ? {
+                                    ...state.project.assessment?.iucnB?.continuingDecline,
+                                    ...partialUpdate.assessment.iucnB.continuingDecline,
+                                  }
+                                : state.project.assessment?.iucnB?.continuingDecline,
+                            extremeFluctuations:
+                              partialUpdate.assessment.iucnB.extremeFluctuations !== undefined
+                                ? {
+                                    ...state.project.assessment?.iucnB?.extremeFluctuations,
+                                    ...partialUpdate.assessment.iucnB.extremeFluctuations,
+                                  }
+                                : state.project.assessment?.iucnB?.extremeFluctuations,
+                          }
+                        : state.project.assessment?.iucnB,
+                  }
+                : state.project.assessment,
           };
 
           return {
             project: nextProject,
             isDirty: true,
             error: undefined,
+            computeError: undefined,
           };
         });
       },
@@ -99,8 +142,10 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
           return;
         }
 
+        set({ isComputingEOO: true, computeError: undefined });
+
         try {
-          const eooResult = await computeEOOAsync(current.occurrences);
+          const eooResult = await geoComputeService.computeEOO(current.occurrences);
 
           set((state) => {
             if (!state.project || state.project.id !== current.id) {
@@ -117,11 +162,16 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
               },
               isDirty: true,
               error: undefined,
+              computeError: undefined,
             };
           });
         } catch (error) {
-          set({ error: toErrorMessage(error) });
+          set({
+            computeError: `Falha ao calcular EOO: ${toErrorMessage(error)}`,
+          });
           throw error;
+        } finally {
+          set({ isComputingEOO: false });
         }
       },
       async computeAOO() {
@@ -131,8 +181,10 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
           return;
         }
 
+        set({ isComputingAOO: true, computeError: undefined });
+
         try {
-          const aooResult = await computeAOOAsync(
+          const aooResult = await geoComputeService.computeAOO(
             current.occurrences,
             current.settings.aooCellSizeMeters,
           );
@@ -152,11 +204,16 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
               },
               isDirty: true,
               error: undefined,
+              computeError: undefined,
             };
           });
         } catch (error) {
-          set({ error: toErrorMessage(error) });
+          set({
+            computeError: `Falha ao calcular AOO: ${toErrorMessage(error)}`,
+          });
           throw error;
+        } finally {
+          set({ isComputingAOO: false });
         }
       },
       async saveProject() {

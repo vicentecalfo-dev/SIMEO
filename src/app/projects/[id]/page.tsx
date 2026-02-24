@@ -23,10 +23,12 @@ import {
 import { isAooStale } from "@/domain/usecases/aoo/is-aoo-stale";
 import { formatKm2 } from "@/domain/usecases/eoo/compute-eoo";
 import { isEooStale } from "@/domain/usecases/eoo/is-eoo-stale";
+import { inferCriterionB } from "@/domain/usecases/iucn/criterion-b";
 import { validateLatLon } from "@/domain/value-objects/latlon";
 import { debounce } from "@/lib/debounce";
 import { useWorkspaceStore } from "@/state/workspace.store";
 import { ExportPanel } from "@/ui/components/export/ExportPanel";
+import type { IucnCriterionBInput, IucnCriterionBItem } from "@/domain/entities/project";
 
 const WorkspaceMapPanel = dynamic(
   () =>
@@ -44,6 +46,16 @@ const WorkspaceMapPanel = dynamic(
 );
 
 const DEFAULT_PAGE_SIZE = 50;
+const IUCN_CRITERION_B_ITEMS: Array<{
+  key: IucnCriterionBItem;
+  label: string;
+}> = [
+  { key: "i", label: "(i) EOO" },
+  { key: "ii", label: "(ii) AOO" },
+  { key: "iii", label: "(iii) área/extensão/qualidade do habitat" },
+  { key: "iv", label: "(iv) nº de localidades/subpopulações" },
+  { key: "v", label: "(v) nº de indivíduos maduros" },
+];
 
 type CsvDraft = {
   headers: string[];
@@ -92,6 +104,9 @@ export default function WorkspaceProjectPage() {
   const isLoading = useWorkspaceStore((state) => state.isLoading);
   const error = useWorkspaceStore((state) => state.error);
   const isDirty = useWorkspaceStore((state) => state.isDirty);
+  const isComputingEOO = useWorkspaceStore((state) => state.isComputingEOO);
+  const isComputingAOO = useWorkspaceStore((state) => state.isComputingAOO);
+  const computeError = useWorkspaceStore((state) => state.computeError);
   const loadProject = useWorkspaceStore((state) => state.loadProject);
   const setProject = useWorkspaceStore((state) => state.setProject);
   const computeAOO = useWorkspaceStore((state) => state.computeAOO);
@@ -246,6 +261,82 @@ export default function WorkspaceProjectPage() {
   const canComputeEOO = quality.valid >= 3;
   const canComputeAOO = quality.valid >= 1;
   const pagedOccurrences = paginatedOccurrences.items;
+  const iucnBInput = project?.assessment?.iucnB;
+  const criterionB = useMemo(
+    () =>
+      inferCriterionB({
+        eooKm2: eooResult?.areaKm2 ?? null,
+        aooKm2: aooResult?.areaKm2 ?? null,
+        eooStale: eooIsStale,
+        aooStale: aooIsStale,
+        assessment: iucnBInput,
+        pointsUsed: aooResult?.pointsUsed ?? eooResult?.pointsUsed,
+        cellSizeMeters: aooResult?.cellSizeMeters ?? project?.settings.aooCellSizeMeters,
+      }),
+    [
+      aooIsStale,
+      aooResult?.areaKm2,
+      aooResult?.cellSizeMeters,
+      aooResult?.pointsUsed,
+      eooIsStale,
+      eooResult?.areaKm2,
+      eooResult?.pointsUsed,
+      iucnBInput,
+      project?.settings.aooCellSizeMeters,
+    ],
+  );
+
+  function saveCriterionBAssessment(next: IucnCriterionBInput) {
+    if (!project) {
+      return;
+    }
+
+    setProject({
+      assessment: {
+        ...project.assessment,
+        iucnB: next,
+      },
+    });
+  }
+
+  function updateCriterionB(partial: Partial<IucnCriterionBInput>) {
+    const current = project?.assessment?.iucnB ?? {};
+
+    const next: IucnCriterionBInput = {
+      ...current,
+      ...partial,
+      continuingDecline:
+        partial.continuingDecline !== undefined
+          ? partial.continuingDecline
+          : current.continuingDecline,
+      extremeFluctuations:
+        partial.extremeFluctuations !== undefined
+          ? partial.extremeFluctuations
+          : current.extremeFluctuations,
+    };
+
+    saveCriterionBAssessment(next);
+  }
+
+  function toggleCriterionItems(
+    currentItems: IucnCriterionBItem[] | undefined,
+    key: IucnCriterionBItem,
+    checked: boolean,
+  ): IucnCriterionBItem[] | undefined {
+    const nextSet = new Set(currentItems ?? []);
+
+    if (checked) {
+      nextSet.add(key);
+    } else {
+      nextSet.delete(key);
+    }
+
+    const nextItems = IUCN_CRITERION_B_ITEMS.map((item) => item.key).filter((item) =>
+      nextSet.has(item),
+    );
+
+    return nextItems.length > 0 ? nextItems : undefined;
+  }
 
   async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -337,12 +428,14 @@ export default function WorkspaceProjectPage() {
       return;
     }
 
+    setQualityMessage(null);
+
     try {
       await computeEOO();
       setShowEOO(true);
       setQualityMessage("EOO calculada e salva no projeto.");
     } catch {
-      setQualityMessage("Falha ao calcular EOO.");
+      // erro já exposto em computeError no store
     }
   }
 
@@ -351,12 +444,14 @@ export default function WorkspaceProjectPage() {
       return;
     }
 
+    setQualityMessage(null);
+
     try {
       await computeAOO();
       setShowAOO(true);
       setQualityMessage("AOO calculada e salva no projeto.");
     } catch {
-      setQualityMessage("Falha ao calcular AOO.");
+      // erro já exposto em computeError no store
     }
   }
 
@@ -517,16 +612,21 @@ export default function WorkspaceProjectPage() {
 
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <h3 className="text-sm font-semibold text-slate-900">Análises</h3>
+            {computeError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {computeError}
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 void handleComputeEOO();
               }}
-              disabled={!canComputeEOO}
+              disabled={!canComputeEOO || isComputingEOO || isComputingAOO}
               className="w-full justify-center"
             >
-              Calcular EOO
+              {isComputingEOO ? "Calculando..." : "Calcular EOO"}
             </Button>
             <Button
               type="button"
@@ -534,10 +634,10 @@ export default function WorkspaceProjectPage() {
               onClick={() => {
                 void handleComputeAOO();
               }}
-              disabled={!canComputeAOO}
+              disabled={!canComputeAOO || isComputingEOO || isComputingAOO}
               className="w-full justify-center"
             >
-              Calcular AOO
+              {isComputingAOO ? "Calculando..." : "Calcular AOO"}
             </Button>
 
             <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -601,6 +701,236 @@ export default function WorkspaceProjectPage() {
                 É necessária ao menos 1 ocorrência válida para calcular o AOO.
               </p>
             )}
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Sugestão - IUCN (Critério B)
+            </h3>
+
+            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+              Sugestão automática baseada no Critério B. A categoria final depende de
+              julgamento técnico e de outros critérios/subcritérios conforme diretrizes da
+              IUCN.
+            </p>
+
+            <div className="space-y-1 rounded-lg bg-white px-3 py-2 text-sm text-slate-700">
+              <p>
+                <span className="font-medium text-slate-900">EOO:</span>{" "}
+                {eooResult ? `${formatKm2(eooResult.areaKm2)} km²` : "Não calculado"}{" "}
+                <span className={eooIsStale ? "text-amber-700" : "text-emerald-700"}>
+                  ({eooIsStale ? "desatualizado" : "atualizado"})
+                </span>
+              </p>
+              <p>
+                <span className="font-medium text-slate-900">AOO:</span>{" "}
+                {aooResult ? `${formatKm2(aooResult.areaKm2)} km²` : "Não calculado"}{" "}
+                <span className={aooIsStale ? "text-amber-700" : "text-emerald-700"}>
+                  ({aooIsStale ? "desatualizado" : "atualizado"})
+                </span>
+              </p>
+              <p>
+                <span className="font-medium text-slate-900">Categoria espacial:</span>{" "}
+                {criterionB.spatialCategory}
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-lg bg-white px-3 py-3 text-sm">
+              <label className="flex items-center gap-2 text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                  checked={iucnBInput?.severelyFragmented === true}
+                  onChange={(event) => {
+                    updateCriterionB({
+                      severelyFragmented: event.target.checked,
+                    });
+                  }}
+                />
+                Severamente fragmentado
+              </label>
+
+              <label className="space-y-1 text-slate-700">
+                <span className="block">Número de localidades</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-sky-600 focus:ring-2 focus:ring-sky-200"
+                  value={iucnBInput?.numberOfLocations ?? ""}
+                  onChange={(event) => {
+                    const rawValue = event.target.value.trim();
+
+                    if (rawValue.length === 0) {
+                      updateCriterionB({ numberOfLocations: null });
+                      return;
+                    }
+
+                    const nextValue = Number(rawValue);
+
+                    if (Number.isFinite(nextValue) && nextValue >= 0) {
+                      updateCriterionB({ numberOfLocations: nextValue });
+                    }
+                  }}
+                />
+              </label>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                    checked={iucnBInput?.continuingDecline?.enabled === true}
+                    onChange={(event) => {
+                      updateCriterionB({
+                        continuingDecline: {
+                          enabled: event.target.checked,
+                          items: event.target.checked
+                            ? iucnBInput?.continuingDecline?.items
+                            : undefined,
+                        },
+                      });
+                    }}
+                  />
+                  Declínio contínuo observado/estimado/inferido/projetado (b)
+                </label>
+
+                {iucnBInput?.continuingDecline?.enabled && (
+                  <div className="grid gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+                    {IUCN_CRITERION_B_ITEMS.map((item) => (
+                      <label key={`decline-${item.key}`} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                          checked={Boolean(
+                            iucnBInput?.continuingDecline?.items?.includes(item.key),
+                          )}
+                          onChange={(event) => {
+                            updateCriterionB({
+                              continuingDecline: {
+                                enabled: true,
+                                items: toggleCriterionItems(
+                                  iucnBInput?.continuingDecline?.items,
+                                  item.key,
+                                  event.target.checked,
+                                ),
+                              },
+                            });
+                          }}
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                    checked={iucnBInput?.extremeFluctuations?.enabled === true}
+                    onChange={(event) => {
+                      updateCriterionB({
+                        extremeFluctuations: {
+                          enabled: event.target.checked,
+                          items: event.target.checked
+                            ? iucnBInput?.extremeFluctuations?.items
+                            : undefined,
+                        },
+                      });
+                    }}
+                  />
+                  Flutuações extremas (c)
+                </label>
+
+                {iucnBInput?.extremeFluctuations?.enabled && (
+                  <div className="grid gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+                    {IUCN_CRITERION_B_ITEMS.map((item) => (
+                      <label key={`fluctuation-${item.key}`} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                          checked={Boolean(
+                            iucnBInput?.extremeFluctuations?.items?.includes(item.key),
+                          )}
+                          onChange={(event) => {
+                            updateCriterionB({
+                              extremeFluctuations: {
+                                enabled: true,
+                                items: toggleCriterionItems(
+                                  iucnBInput?.extremeFluctuations?.items,
+                                  item.key,
+                                  event.target.checked,
+                                ),
+                              },
+                            });
+                          }}
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div
+              className={`space-y-2 rounded-lg border px-3 py-2 text-sm ${
+                criterionB.criterionBMet
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+            >
+              {criterionB.criterionBMet ? (
+                <>
+                  <p>
+                    <span className="font-semibold">Sugestão:</span>{" "}
+                    {criterionB.suggestedCategory} (Critério B)
+                  </p>
+                  <p className="text-xs">
+                    <span className="font-semibold">Status de evidência:</span>{" "}
+                    subcritérios suficientes (&gt;=2 entre a/b/c).
+                  </p>
+                  {criterionB.suggestedCode && (
+                    <p>
+                      Código:{" "}
+                      <code className="rounded bg-white px-1 py-0.5 font-mono text-xs">
+                        {criterionB.suggestedCode}
+                      </code>
+                    </p>
+                  )}
+                </>
+              ) : criterionB.spatialCategory === "LC" ||
+                criterionB.spatialCategory === "DD" ? (
+                <>
+                  <p className="font-medium">
+                    Sugestão no escopo do Critério B: {criterionB.suggestedCategory}
+                  </p>
+                  <p className="text-xs">
+                    <span className="font-semibold">Status de evidência:</span>{" "}
+                    sem gatilho espacial de ameaça (LC) ou com dados insuficientes (DD).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">
+                    Sem sugestão final (Critério B incompleto).
+                  </p>
+                  <p className="text-xs">
+                    <span className="font-semibold">Status de evidência:</span>{" "}
+                    insuficiente para fechar o Critério B.
+                  </p>
+                </>
+              )}
+
+              {criterionB.notes.map((note, index) => (
+                <p key={`criterion-note-${index}`} className="text-xs">
+                  {note}
+                </p>
+              ))}
+            </div>
           </div>
 
           <p

@@ -10,17 +10,18 @@ import type {
 const workerScope = self as DedicatedWorkerGlobalScope;
 
 workerScope.onmessage = (event: MessageEvent<GeoWorkerRequest>) => {
-  const message = event.data;
+  const request = event.data;
 
   try {
-    if (message.type === "eoo") {
+    if (request.type === "eoo") {
       const result = computeEOO({
-        occurrences: message.payload.occurrences,
+        occurrences: request.payload.occurrences,
       });
 
       const response: GeoWorkerResponse = {
-        requestId: message.requestId,
+        id: request.id,
         ok: true,
+        type: "eoo",
         result,
       };
 
@@ -29,22 +30,27 @@ workerScope.onmessage = (event: MessageEvent<GeoWorkerRequest>) => {
     }
 
     const result = computeAOO({
-      occurrences: message.payload.occurrences,
-      cellSizeMeters: message.payload.cellSizeMeters,
+      occurrences: request.payload.occurrences,
+      cellSizeMeters: request.payload.cellSizeMeters,
     });
 
     const response: GeoWorkerResponse = {
-      requestId: message.requestId,
+      id: request.id,
       ok: true,
+      type: "aoo",
       result,
     };
 
     workerScope.postMessage(response);
   } catch (error) {
     const response: GeoWorkerResponse = {
-      requestId: message.requestId,
+      id: request.id,
       ok: false,
-      error: error instanceof Error ? error.message : "erro no worker",
+      type: request.type,
+      error: {
+        message: error instanceof Error ? error.message : "Falha ao calcular no worker.",
+        stack: error instanceof Error ? error.stack : undefined,
+      },
     };
 
     workerScope.postMessage(response);

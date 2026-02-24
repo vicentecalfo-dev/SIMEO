@@ -92,6 +92,9 @@ export class DexieProjectRepository implements ProjectRepository {
               : undefined,
           }
         : undefined,
+      assessment: baseProject.assessment
+        ? (JSON.parse(JSON.stringify(baseProject.assessment)) as Project["assessment"])
+        : undefined,
     };
 
     await this.db.projects.add(duplicated);

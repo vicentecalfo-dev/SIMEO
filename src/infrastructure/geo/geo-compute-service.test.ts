@@ -1,58 +1,77 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Occurrence } from "@/domain/entities/occurrence";
 import { computeAOO } from "@/domain/usecases/aoo/compute-aoo";
 import { computeEOO } from "@/domain/usecases/eoo/compute-eoo";
 import {
-  computeAOOAsync,
-  computeEOOAsync,
+  GeoComputeService,
+  serializeOccurrencesForWorker,
 } from "@/infrastructure/geo/geo-compute-service";
 
 const fixtures: Occurrence[] = [
-  { id: "a", lat: 0, lon: 0 },
-  { id: "b", lat: 0, lon: 1 },
-  { id: "c", lat: 1, lon: 0 },
+  { id: "a", lat: 0, lon: 0, label: "A" },
+  { id: "b", lat: 0, lon: 1, label: "B" },
+  { id: "c", lat: 1, lon: 0, label: "C" },
 ];
 
 describe("geo-compute-service fallback", () => {
-  const originalWorker = globalThis.Worker;
-
   afterEach(() => {
-    Object.defineProperty(globalThis, "Worker", {
-      value: originalWorker,
-      configurable: true,
-      writable: true,
-    });
+    vi.restoreAllMocks();
   });
 
-  it("computeEOOAsync usa fallback e mantém formato", async () => {
-    Object.defineProperty(globalThis, "Worker", {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
+  it("computeEOO usa fallback sem Worker e mantém resultado do usecase", async () => {
+    const service = new GeoComputeService({ workerFactory: () => null });
+    vi.spyOn(Date, "now").mockReturnValue(171);
 
-    const asyncResult = await computeEOOAsync(fixtures);
+    const asyncResult = await service.computeEOO(fixtures);
     const directResult = computeEOO({ occurrences: fixtures });
 
-    expect(asyncResult.pointsUsed).toBe(directResult.pointsUsed);
-    expect(asyncResult.inputHash).toBe(directResult.inputHash);
-    expect(asyncResult.hull?.geometry.type ?? null).toBe(
-      directResult.hull?.geometry.type ?? null,
-    );
+    expect(asyncResult).toEqual(directResult);
   });
 
-  it("computeAOOAsync usa fallback e mantém formato", async () => {
-    Object.defineProperty(globalThis, "Worker", {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
+  it("computeAOO usa fallback sem Worker e mantém resultado do usecase", async () => {
+    const service = new GeoComputeService({ workerFactory: () => null });
+    vi.spyOn(Date, "now").mockReturnValue(172);
 
-    const asyncResult = await computeAOOAsync(fixtures, 2000);
+    const asyncResult = await service.computeAOO(fixtures, 2000);
     const directResult = computeAOO({ occurrences: fixtures, cellSizeMeters: 2000 });
 
-    expect(asyncResult.cellCount).toBe(directResult.cellCount);
-    expect(asyncResult.inputHash).toBe(directResult.inputHash);
-    expect(asyncResult.grid.features.length).toBe(directResult.grid.features.length);
+    expect(asyncResult).toEqual(directResult);
+  });
+
+  it("serializa payload para formato simples e sem Map/Set", () => {
+    const payload: Occurrence[] = [
+      {
+        id: "x",
+        lat: -12,
+        lon: -47,
+        label: "Teste",
+        raw: {
+          metadata: new Map([
+            ["fonte", "gbif"],
+            ["tags", new Set(["nativa", "ameaçada"])],
+          ]),
+          nested: [{ key: "ok", values: new Set([1, 2]) }],
+        },
+      },
+    ];
+
+    const serialized = serializeOccurrencesForWorker(payload);
+
+    expect(serialized).toEqual([
+      {
+        id: "x",
+        lat: -12,
+        lon: -47,
+        label: "Teste",
+        raw: {
+          metadata: {
+            fonte: "gbif",
+            tags: ["nativa", "ameaçada"],
+          },
+          nested: [{ key: "ok", values: [1, 2] }],
+        },
+      },
+    ]);
+    expect(serialized[0]?.raw?.metadata instanceof Map).toBe(false);
   });
 });

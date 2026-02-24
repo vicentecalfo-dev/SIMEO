@@ -38,6 +38,15 @@ npm run test:coverage
 - Projeto 100% client-side.
 - Projetos são salvos localmente no navegador via IndexedDB (Dexie).
 - Não existe backend neste marco.
+- O Workspace possui módulo de **Sugestão (IUCN - Critério B)** baseado em EOO/AOO e subcritérios preenchidos pelo usuário.
+- Limiar espacial adotado no Critério B (uso interno da sugestão):
+  - `CR`: `EOO < 100 km²` e/ou `AOO < 10 km²`
+  - `EN`: `EOO < 5.000 km²` e/ou `AOO < 500 km²`
+  - `VU`: `EOO < 20.000 km²` e/ou `AOO < 2.000 km²`
+- Limiar de número de localidades para subcritério `a`:
+  - `CR <= 1`, `EN <= 5`, `VU <= 10`
+- A sugestão automática **não** representa categoria final IUCN; a decisão final depende de julgamento técnico e de outros critérios/subcritérios.
+- O conceito de “localidade” depende da ameaça mais séria e do julgamento do assessor.
 - Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
 - No workspace (`/projects/[id]`), nome do projeto e tamanho da célula AOO possuem autosave local com debounce.
 - Importação de ocorrências disponível no workspace para CSV (com mapeamento de colunas) e JSON simples.
