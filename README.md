@@ -25,8 +25,20 @@ npm run dev
 
 Acesse: `http://localhost:3000/projects`
 
+## Testes
+
+```bash
+npm run test
+npm run test:watch
+npm run test:coverage
+```
+
 ## Notas
 
 - Projeto 100% client-side.
-- Persistência futura via IndexedDB.
+- Projetos são salvos localmente no navegador via IndexedDB (Dexie).
+- Não existe backend neste marco.
+- Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
+- Persistência de ocorrências/resultados via IndexedDB será expandida nos próximos marcos.
 - Mapa será implementado nos próximos marcos.
+- O domínio terá testes auditáveis para cálculos de EOO/AOO nos próximos marcos.
