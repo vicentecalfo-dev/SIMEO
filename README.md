@@ -39,6 +39,7 @@ npm run test:coverage
 - Projetos são salvos localmente no navegador via IndexedDB (Dexie).
 - Não existe backend neste marco.
 - Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
+- No workspace (`/projects/[id]`), nome do projeto e tamanho da célula AOO possuem autosave local com debounce.
 - Persistência de ocorrências/resultados via IndexedDB será expandida nos próximos marcos.
 - Mapa será implementado nos próximos marcos.
 - O domínio terá testes auditáveis para cálculos de EOO/AOO nos próximos marcos.

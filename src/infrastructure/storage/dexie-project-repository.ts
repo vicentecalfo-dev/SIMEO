@@ -2,6 +2,7 @@ import {
   generateProjectId,
   type Project,
   type ProjectSummary,
+  withProjectDefaults,
 } from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import { createDexieDb, type SimeoDexieDb } from "@/infrastructure/storage/dexie-db";
@@ -21,15 +22,16 @@ export class DexieProjectRepository implements ProjectRepository {
   }
 
   async getById(id: string): Promise<Project | null> {
-    return (await this.db.projects.get(id)) ?? null;
+    const project = await this.db.projects.get(id);
+    return project ? withProjectDefaults(project) : null;
   }
 
   async create(project: Project): Promise<void> {
-    await this.db.projects.add(project);
+    await this.db.projects.add(withProjectDefaults(project));
   }
 
   async update(project: Project): Promise<void> {
-    await this.db.projects.put(project);
+    await this.db.projects.put(withProjectDefaults(project));
   }
 
   async rename(id: string, name: string): Promise<void> {
@@ -39,8 +41,10 @@ export class DexieProjectRepository implements ProjectRepository {
       throw new Error("projeto não encontrado");
     }
 
+    const baseProject = withProjectDefaults(existing);
+
     await this.db.projects.put({
-      ...existing,
+      ...baseProject,
       name,
       updatedAt: Date.now(),
     });
@@ -57,13 +61,18 @@ export class DexieProjectRepository implements ProjectRepository {
       throw new Error("projeto não encontrado");
     }
 
+    const baseProject = withProjectDefaults(existing);
     const now = Date.now();
     const duplicated: Project = {
-      ...existing,
+      ...baseProject,
       id: generateProjectId(),
       name: newName,
       createdAt: now,
       updatedAt: now,
+      settings: {
+        ...baseProject.settings,
+      },
+      occurrences: [...baseProject.occurrences],
     };
 
     await this.db.projects.add(duplicated);

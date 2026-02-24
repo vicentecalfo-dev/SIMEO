@@ -11,6 +11,10 @@ function projectFixture(data: Partial<Project> = {}): Project {
     name: data.name ?? "Projeto",
     createdAt: data.createdAt ?? now,
     updatedAt: data.updatedAt ?? now,
+    settings: data.settings ?? {
+      aooCellSizeMeters: 2000,
+    },
+    occurrences: data.occurrences ?? [],
   };
 }
 

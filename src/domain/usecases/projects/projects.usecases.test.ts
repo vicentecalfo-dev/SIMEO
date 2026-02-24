@@ -65,6 +65,10 @@ class InMemoryProjectRepository implements ProjectRepository {
       name: newName,
       createdAt: now,
       updatedAt: now,
+      settings: {
+        ...source.settings,
+      },
+      occurrences: [...source.occurrences],
     };
 
     this.projects.set(duplicated.id, duplicated);
@@ -80,6 +84,8 @@ describe("project usecases", () => {
     const created = await createProjectUseCase(repo, "   Projeto Base   ");
 
     expect(created.name).toBe("Projeto Base");
+    expect(created.settings.aooCellSizeMeters).toBe(2000);
+    expect(created.occurrences).toEqual([]);
 
     let list = await listProjectsUseCase(repo);
     expect(list).toHaveLength(1);

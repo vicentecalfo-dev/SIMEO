@@ -3,6 +3,11 @@ export interface Project {
   name: string;
   createdAt: number;
   updatedAt: number;
+  settings: {
+    aooCellSizeMeters: number;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Temporário até definirmos Occurrence completa.
+  occurrences: any[];
 }
 
 export interface ProjectSummary {
@@ -15,6 +20,8 @@ export interface ProjectSummary {
 function randomIdFallback(): string {
   return `proj-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+export const DEFAULT_AOO_CELL_SIZE_METERS = 2000;
 
 export function generateProjectId(): string {
   if (
@@ -35,6 +42,10 @@ export function newProject(name: string): Project {
     name,
     createdAt: now,
     updatedAt: now,
+    settings: {
+      aooCellSizeMeters: DEFAULT_AOO_CELL_SIZE_METERS,
+    },
+    occurrences: [],
   };
 }
 
@@ -42,5 +53,24 @@ export function touchProject(project: Project): Project {
   return {
     ...project,
     updatedAt: Date.now(),
+  };
+}
+
+export function withProjectDefaults(project: Project): Project {
+  const maybeProject = project as Project & {
+    settings?: { aooCellSizeMeters?: number };
+    occurrences?: unknown[];
+  };
+
+  return {
+    ...project,
+    settings: {
+      aooCellSizeMeters: Number.isFinite(maybeProject.settings?.aooCellSizeMeters)
+        ? Number(maybeProject.settings?.aooCellSizeMeters)
+        : DEFAULT_AOO_CELL_SIZE_METERS,
+    },
+    occurrences: Array.isArray(maybeProject.occurrences)
+      ? [...maybeProject.occurrences]
+      : [],
   };
 }
