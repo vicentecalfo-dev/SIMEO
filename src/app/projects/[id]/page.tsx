@@ -277,7 +277,7 @@ export default function WorkspaceProjectPage() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-screen w-full items-center px-4 py-10 sm:px-6 lg:px-8">
         <p className="text-sm text-slate-500">Carregando projeto...</p>
       </main>
     );
@@ -285,7 +285,7 @@ export default function WorkspaceProjectPage() {
 
   if (error) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-screen w-full flex-col gap-4 px-4 py-10 sm:px-6 lg:px-8">
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           Erro: {error}
         </p>
@@ -301,7 +301,7 @@ export default function WorkspaceProjectPage() {
 
   if (!project) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-screen w-full flex-col gap-4 px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">
           Projeto não encontrado
         </h1>
@@ -319,7 +319,7 @@ export default function WorkspaceProjectPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <main className="mx-auto flex min-h-screen w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
           Workspace do Projeto
