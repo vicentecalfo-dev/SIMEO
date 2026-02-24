@@ -3,6 +3,8 @@ import type { Project } from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import { getProjectUseCase } from "@/domain/usecases/projects/get-project";
 import { updateProject } from "@/domain/usecases/projects/update-project";
+import { computeAOO as computeAooUseCase } from "@/domain/usecases/aoo/compute-aoo";
+import { computeEOO as computeEooUseCase } from "@/domain/usecases/eoo/compute-eoo";
 import { createProjectRepository } from "@/infrastructure/storage/dexie-project-repository";
 
 function toErrorMessage(error: unknown): string {
@@ -20,6 +22,8 @@ export interface WorkspaceState {
   isDirty: boolean;
   loadProject: (id: string) => Promise<void>;
   setProject: (partialUpdate: Partial<Project>) => void;
+  computeAOO: () => void;
+  computeEOO: () => void;
   saveProject: () => Promise<void>;
   resetDirty: () => void;
 }
@@ -70,10 +74,64 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
             occurrences: partialUpdate.occurrences
               ? [...partialUpdate.occurrences]
               : state.project.occurrences,
+            results:
+              partialUpdate.results !== undefined
+                ? {
+                    ...state.project.results,
+                    ...partialUpdate.results,
+                  }
+                : state.project.results,
           };
 
           return {
             project: nextProject,
+            isDirty: true,
+            error: undefined,
+          };
+        });
+      },
+      computeEOO() {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          const eooResult = computeEooUseCase({
+            occurrences: state.project.occurrences,
+          });
+
+          return {
+            project: {
+              ...state.project,
+              results: {
+                ...state.project.results,
+                eoo: eooResult,
+              },
+            },
+            isDirty: true,
+            error: undefined,
+          };
+        });
+      },
+      computeAOO() {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          const aooResult = computeAooUseCase({
+            occurrences: state.project.occurrences,
+            cellSizeMeters: state.project.settings.aooCellSizeMeters,
+          });
+
+          return {
+            project: {
+              ...state.project,
+              results: {
+                ...state.project.results,
+                aoo: aooResult,
+              },
+            },
             isDirty: true,
             error: undefined,
           };

@@ -73,6 +73,25 @@ export class DexieProjectRepository implements ProjectRepository {
         ...baseProject.settings,
       },
       occurrences: [...baseProject.occurrences],
+      results: baseProject.results
+        ? {
+            ...baseProject.results,
+            eoo: baseProject.results.eoo
+              ? {
+                  ...baseProject.results.eoo,
+                  hull: baseProject.results.eoo.hull
+                    ? JSON.parse(JSON.stringify(baseProject.results.eoo.hull))
+                    : null,
+                }
+              : undefined,
+            aoo: baseProject.results.aoo
+              ? {
+                  ...baseProject.results.aoo,
+                  grid: JSON.parse(JSON.stringify(baseProject.results.aoo.grid)),
+                }
+              : undefined,
+          }
+        : undefined,
     };
 
     await this.db.projects.add(duplicated);

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import type { Occurrence } from "@/domain/entities/occurrence";
+import type { AooResult, EooResult } from "@/domain/entities/project";
 import { validateLatLon } from "@/domain/value-objects/latlon";
 import { AooGridLayer } from "@/ui/components/map/AooGridLayer";
 import { EooLayer } from "@/ui/components/map/EooLayer";
@@ -14,12 +15,20 @@ import { useMapFitBounds } from "@/ui/components/map/useMapFitBounds";
 type WorkspaceMapPanelProps = {
   occurrences: Occurrence[];
   showOccurrences: boolean;
+  showEOO: boolean;
+  showAOO: boolean;
+  eoo?: EooResult;
+  aoo?: AooResult;
   onToggleOccurrences: () => void;
 };
 
 export function WorkspaceMapPanel({
   occurrences,
   showOccurrences,
+  showEOO,
+  showAOO,
+  eoo,
+  aoo,
   onToggleOccurrences,
 }: WorkspaceMapPanelProps) {
   const [map, setMap] = useState<LeafletMap | null>(null);
@@ -46,8 +55,8 @@ export function WorkspaceMapPanel({
 
       <MapCanvas onMapReady={setMap}>
         <OccurrencesLayer occurrences={validOccurrences} visible={showOccurrences} />
-        <EooLayer visible={false} />
-        <AooGridLayer visible={false} />
+        <EooLayer eoo={eoo} visible={showEOO} />
+        <AooGridLayer aoo={aoo} visible={showAOO} />
       </MapCanvas>
     </div>
   );

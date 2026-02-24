@@ -15,6 +15,9 @@ import {
   dedupeOccurrences,
   removeInvalid,
 } from "@/domain/usecases/occurrences/clean-occurrences";
+import { isAooStale } from "@/domain/usecases/aoo/is-aoo-stale";
+import { formatKm2 } from "@/domain/usecases/eoo/compute-eoo";
+import { isEooStale } from "@/domain/usecases/eoo/is-eoo-stale";
 import { validateLatLon } from "@/domain/value-objects/latlon";
 import { useWorkspaceStore } from "@/state/workspace.store";
 
@@ -84,6 +87,8 @@ export default function WorkspaceProjectPage() {
   const isDirty = useWorkspaceStore((state) => state.isDirty);
   const loadProject = useWorkspaceStore((state) => state.loadProject);
   const setProject = useWorkspaceStore((state) => state.setProject);
+  const computeAOO = useWorkspaceStore((state) => state.computeAOO);
+  const computeEOO = useWorkspaceStore((state) => state.computeEOO);
   const saveProject = useWorkspaceStore((state) => state.saveProject);
 
   const [csvDraft, setCsvDraft] = useState<CsvDraft | null>(null);
@@ -99,6 +104,8 @@ export default function WorkspaceProjectPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [showOccurrences, setShowOccurrences] = useState(true);
+  const [showEOO, setShowEOO] = useState(false);
+  const [showAOO, setShowAOO] = useState(false);
 
   useEffect(() => {
     void loadProject(projectId).catch(() => undefined);
@@ -121,6 +128,15 @@ export default function WorkspaceProjectPage() {
   useEffect(() => {
     setPage(1);
   }, [searchTerm, project?.occurrences.length]);
+
+  useEffect(() => {
+    if (!project) {
+      return;
+    }
+
+    setShowEOO(Boolean(project.results?.eoo));
+    setShowAOO(Boolean(project.results?.aoo));
+  }, [project?.id]);
 
   const quality = useMemo(() => {
     if (!project) {
@@ -145,6 +161,22 @@ export default function WorkspaceProjectPage() {
     };
   }, [project]);
 
+  const eooIsStale = useMemo(() => {
+    if (!project) {
+      return true;
+    }
+
+    return isEooStale(project);
+  }, [project]);
+
+  const aooIsStale = useMemo(() => {
+    if (!project) {
+      return true;
+    }
+
+    return isAooStale(project);
+  }, [project]);
+
   const filteredOccurrences = useMemo(() => {
     if (!project) {
       return [];
@@ -166,6 +198,10 @@ export default function WorkspaceProjectPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredOccurrences.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
+  const eooResult = project?.results?.eoo;
+  const aooResult = project?.results?.aoo;
+  const canComputeEOO = quality.valid >= 3;
+  const canComputeAOO = quality.valid >= 1;
 
   const pagedOccurrences = useMemo(() => {
     const start = (safePage - 1) * PAGE_SIZE;
@@ -255,6 +291,26 @@ export default function WorkspaceProjectPage() {
     } catch (mapError) {
       setImportError(mapError instanceof Error ? mapError.message : "falha ao importar csv");
     }
+  }
+
+  function handleComputeEOO() {
+    if (!project) {
+      return;
+    }
+
+    computeEOO();
+    setShowEOO(true);
+    setQualityMessage("EOO calculada e salva no projeto.");
+  }
+
+  function handleComputeAOO() {
+    if (!project) {
+      return;
+    }
+
+    computeAOO();
+    setShowAOO(true);
+    setQualityMessage("AOO calculada e salva no projeto.");
   }
 
   function handleRemoveInvalid() {
@@ -412,6 +468,90 @@ export default function WorkspaceProjectPage() {
             </p>
           </div>
 
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="text-sm font-semibold text-slate-900">Análises</h3>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleComputeEOO}
+              disabled={!canComputeEOO}
+              className="w-full justify-center"
+            >
+              Calcular EOO
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleComputeAOO}
+              disabled={!canComputeAOO}
+              className="w-full justify-center"
+            >
+              Calcular AOO
+            </Button>
+
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                checked={showEOO}
+                onChange={(event) => setShowEOO(event.target.checked)}
+                disabled={!eooResult || !eooResult.hull}
+              />
+              Mostrar EOO
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                checked={showAOO}
+                onChange={(event) => setShowAOO(event.target.checked)}
+                disabled={!aooResult || aooResult.cellCount === 0}
+              />
+              Mostrar AOO
+            </label>
+
+            <div className="space-y-1 rounded-lg bg-white px-3 py-2 text-sm">
+              <p className="text-slate-700">
+                <span className="font-medium text-slate-900">Status EOO:</span>{" "}
+                <span className={eooIsStale ? "text-amber-700" : "text-emerald-700"}>
+                  {eooIsStale ? "Desatualizado" : "Atualizado"}
+                </span>
+              </p>
+              <p className="text-slate-700">
+                <span className="font-medium text-slate-900">EOO:</span>{" "}
+                {eooResult ? `${formatKm2(eooResult.areaKm2)} km²` : "0,00 km²"}
+              </p>
+              <p className="text-slate-700">
+                <span className="font-medium text-slate-900">Status AOO:</span>{" "}
+                <span className={aooIsStale ? "text-amber-700" : "text-emerald-700"}>
+                  {aooIsStale ? "Desatualizado" : "Atualizado"}
+                </span>
+              </p>
+              <p className="text-slate-700">
+                <span className="font-medium text-slate-900">AOO:</span>{" "}
+                {aooResult ? `${formatKm2(aooResult.areaKm2)} km²` : "0,00 km²"}
+              </p>
+              <p className="text-slate-700">
+                <span className="font-medium text-slate-900">Células:</span>{" "}
+                {aooResult?.cellCount ?? 0}
+              </p>
+              <p className="text-slate-700">
+                <span className="font-medium text-slate-900">Tamanho da célula:</span>{" "}
+                {project.settings.aooCellSizeMeters} m
+              </p>
+            </div>
+            {!canComputeEOO && (
+              <p className="text-xs text-amber-700">
+                São necessárias ao menos 3 ocorrências válidas para calcular o EOO.
+              </p>
+            )}
+            {!canComputeAOO && (
+              <p className="text-xs text-amber-700">
+                É necessária ao menos 1 ocorrência válida para calcular o AOO.
+              </p>
+            )}
+          </div>
+
           <p
             className={`text-sm font-medium ${
               isDirty ? "text-amber-700" : "text-emerald-700"
@@ -430,6 +570,10 @@ export default function WorkspaceProjectPage() {
               <WorkspaceMapPanel
                 occurrences={project.occurrences}
                 showOccurrences={showOccurrences}
+                showEOO={showEOO}
+                showAOO={showAOO}
+                eoo={eooResult}
+                aoo={aooResult}
                 onToggleOccurrences={() => setShowOccurrences((current) => !current)}
               />
             </Card.Main>

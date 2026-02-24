@@ -131,4 +131,55 @@ describe("workspace.store", () => {
 
     vi.restoreAllMocks();
   });
+
+  it("computeEOO atualiza results.eoo e marca dirty", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    project.occurrences = [
+      { id: "a", lat: 0, lon: 0 },
+      { id: "b", lat: 0, lon: 1 },
+      { id: "c", lat: 1, lon: 0 },
+    ];
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+
+    vi.spyOn(Date, "now").mockReturnValue(333);
+
+    useWorkspaceStore.getState().computeEOO();
+
+    expect(useWorkspaceStore.getState().isDirty).toBe(true);
+    expect(useWorkspaceStore.getState().project?.results?.eoo).toBeDefined();
+    expect(useWorkspaceStore.getState().project?.results?.eoo?.computedAt).toBe(333);
+    expect(useWorkspaceStore.getState().project?.results?.eoo?.areaKm2).toBeGreaterThan(0);
+
+    vi.restoreAllMocks();
+  });
+
+  it("computeAOO atualiza results.aoo e marca dirty", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    project.occurrences = [
+      { id: "a", lat: 0, lon: 0 },
+      { id: "b", lat: 0, lon: 0.0001 },
+    ];
+    project.settings.aooCellSizeMeters = 2000;
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+
+    vi.spyOn(Date, "now").mockReturnValue(444);
+
+    useWorkspaceStore.getState().computeAOO();
+
+    expect(useWorkspaceStore.getState().isDirty).toBe(true);
+    expect(useWorkspaceStore.getState().project?.results?.aoo).toBeDefined();
+    expect(useWorkspaceStore.getState().project?.results?.aoo?.computedAt).toBe(444);
+    expect(useWorkspaceStore.getState().project?.results?.aoo?.cellSizeMeters).toBe(2000);
+    expect(useWorkspaceStore.getState().project?.results?.aoo?.cellCount).toBeGreaterThan(0);
+
+    vi.restoreAllMocks();
+  });
 });
