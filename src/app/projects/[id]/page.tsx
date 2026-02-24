@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card } from "@codeworker.br/govbr-tw-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -16,6 +17,21 @@ import {
 } from "@/domain/usecases/occurrences/clean-occurrences";
 import { validateLatLon } from "@/domain/value-objects/latlon";
 import { useWorkspaceStore } from "@/state/workspace.store";
+
+const WorkspaceMapPanel = dynamic(
+  () =>
+    import("@/ui/components/map/WorkspaceMapPanel").then(
+      (module) => module.WorkspaceMapPanel,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[520px] rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+        Carregando mapa...
+      </div>
+    ),
+  },
+);
 
 const PAGE_SIZE = 50;
 
@@ -82,6 +98,7 @@ export default function WorkspaceProjectPage() {
   const [qualityMessage, setQualityMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
+  const [showOccurrences, setShowOccurrences] = useState(true);
 
   useEffect(() => {
     void loadProject(projectId).catch(() => undefined);
@@ -407,6 +424,19 @@ export default function WorkspaceProjectPage() {
         <section className="space-y-4">
           <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <Card.Header className="text-lg font-semibold text-slate-900">
+              Mapa
+            </Card.Header>
+            <Card.Main className="space-y-3 pb-6">
+              <WorkspaceMapPanel
+                occurrences={project.occurrences}
+                showOccurrences={showOccurrences}
+                onToggleOccurrences={() => setShowOccurrences((current) => !current)}
+              />
+            </Card.Main>
+          </Card>
+
+          <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <Card.Header className="text-lg font-semibold text-slate-900">
               Importar Ocorrências
             </Card.Header>
             <Card.Main className="space-y-4 pb-6">
@@ -637,7 +667,7 @@ export default function WorkspaceProjectPage() {
             </Card.Header>
             <Card.Main className="space-y-4 pb-6">
               <p className="text-sm text-slate-600">
-                Mapa será implementado no próximo marco.
+                Tabela e inspeção de ocorrências importadas.
               </p>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
