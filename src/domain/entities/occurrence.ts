@@ -5,14 +5,24 @@ export interface Occurrence {
   lat: number;
   lon: number;
   label?: string;
+  source?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Estrutura auditável temporária da linha original.
+  raw?: Record<string, any>;
 }
 
-function generateOccurrenceId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+function randomOccurrenceIdFallback(): string {
+  return `occ-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+export function generateOccurrenceId(): string {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
   }
 
-  return `occ-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return randomOccurrenceIdFallback();
 }
 
 export function normalizeOccurrence(
@@ -39,7 +49,18 @@ export function normalizeOccurrence(
   };
 
   if (typeof input.label === "string") {
-    normalized.label = input.label.trim();
+    const trimmed = input.label.trim();
+    if (trimmed.length > 0) {
+      normalized.label = trimmed;
+    }
+  }
+
+  if (typeof input.source === "string" && input.source.trim().length > 0) {
+    normalized.source = input.source.trim();
+  }
+
+  if (input.raw && typeof input.raw === "object") {
+    normalized.raw = { ...input.raw };
   }
 
   return normalized;

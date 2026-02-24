@@ -1,3 +1,5 @@
+import type { Occurrence } from "@/domain/entities/occurrence";
+
 export interface Project {
   id: string;
   name: string;
@@ -6,8 +8,7 @@ export interface Project {
   settings: {
     aooCellSizeMeters: number;
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Temporário até definirmos Occurrence completa.
-  occurrences: any[];
+  occurrences: Occurrence[];
 }
 
 export interface ProjectSummary {
@@ -59,7 +60,7 @@ export function touchProject(project: Project): Project {
 export function withProjectDefaults(project: Project): Project {
   const maybeProject = project as Project & {
     settings?: { aooCellSizeMeters?: number };
-    occurrences?: unknown[];
+    occurrences?: Occurrence[];
   };
 
   return {
@@ -70,7 +71,7 @@ export function withProjectDefaults(project: Project): Project {
         : DEFAULT_AOO_CELL_SIZE_METERS,
     },
     occurrences: Array.isArray(maybeProject.occurrences)
-      ? [...maybeProject.occurrences]
+      ? maybeProject.occurrences.map((occurrence) => ({ ...occurrence }))
       : [],
   };
 }

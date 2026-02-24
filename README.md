@@ -40,6 +40,8 @@ npm run test:coverage
 - Não existe backend neste marco.
 - Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
 - No workspace (`/projects/[id]`), nome do projeto e tamanho da célula AOO possuem autosave local com debounce.
+- Importação de ocorrências disponível no workspace para CSV (com mapeamento de colunas) e JSON simples.
+- Ferramentas de qualidade no workspace: remover inválidas, remover duplicadas e limpar ocorrências.
 - Persistência de ocorrências/resultados via IndexedDB será expandida nos próximos marcos.
 - Mapa será implementado nos próximos marcos.
 - O domínio terá testes auditáveis para cálculos de EOO/AOO nos próximos marcos.
