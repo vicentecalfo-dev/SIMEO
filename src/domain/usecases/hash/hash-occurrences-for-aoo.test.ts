@@ -8,6 +8,7 @@ function occ(id: string, lat: number, lon: number, label?: string): Occurrence {
     lat,
     lon,
     label,
+    calcStatus: "enabled",
   };
 }
 
@@ -42,5 +43,20 @@ describe("hashOccurrencesForAOO", () => {
     const onlyValid: Occurrence[] = [occ("1", -10.1, -50.2, "P1")];
 
     expect(hashOccurrencesForAOO(withInvalid, 2000)).toBe(hashOccurrencesForAOO(onlyValid, 2000));
+  });
+
+  it("muda hash quando status de cálculo muda", () => {
+    const enabled: Occurrence[] = [occ("1", -10.1, -50.2, "P1"), occ("2", -11.1, -51.2, "P2")];
+    const disabledSecond: Occurrence[] = [
+      enabled[0]!,
+      {
+        ...enabled[1]!,
+        calcStatus: "disabled",
+      },
+    ];
+
+    expect(hashOccurrencesForAOO(enabled, 2000)).not.toBe(
+      hashOccurrencesForAOO(disabledSecond, 2000),
+    );
   });
 });

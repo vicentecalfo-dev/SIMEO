@@ -10,6 +10,7 @@ function occFromMeters(id: string, x: number, y: number): Occurrence {
     id,
     lon: point.lon,
     lat: point.lat,
+    calcStatus: "enabled",
   };
 }
 
@@ -59,6 +60,22 @@ describe("computeAOO", () => {
       occurrences: [
         occFromMeters("a", 0, 0),
         { id: "inv", lat: 999, lon: 999 },
+      ],
+    });
+
+    expect(result.pointsUsed).toBe(1);
+    expect(result.cellCount).toBe(1);
+  });
+
+  it("ignora pontos desabilitados na contagem", () => {
+    const result = computeAOO({
+      cellSizeMeters: 2000,
+      occurrences: [
+        occFromMeters("a", 0, 0),
+        {
+          ...occFromMeters("b", 2100, 0),
+          calcStatus: "disabled",
+        },
       ],
     });
 

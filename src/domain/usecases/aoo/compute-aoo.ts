@@ -5,7 +5,7 @@ import {
   computeOccupiedCells,
 } from "@/domain/geo/aoo-grid";
 import { hashOccurrencesForAOO } from "@/domain/usecases/hash/hash-occurrences-for-aoo";
-import { validateLatLon } from "@/domain/value-objects/latlon";
+import { selectOccurrencesForCompute } from "@/domain/usecases/occurrences/select-occurrences-for-compute";
 
 export type ComputeAooParams = {
   occurrences: Occurrence[];
@@ -22,12 +22,6 @@ export type ComputeAooResult = {
   pointsUsed: number;
 };
 
-function toValidOccurrences(occurrences: Occurrence[]): Occurrence[] {
-  return occurrences.filter((occurrence) =>
-    validateLatLon(occurrence.lat, occurrence.lon).ok,
-  );
-}
-
 function emptyGrid(): GeoJSON.FeatureCollection<GeoJSON.Polygon> {
   return {
     type: "FeatureCollection",
@@ -43,10 +37,10 @@ export function computeAOO({
     throw new Error("cellSizeMeters inválido");
   }
 
-  const validOccurrences = toValidOccurrences(occurrences);
-  const pointsUsed = validOccurrences.length;
+  const computeOccurrences = selectOccurrencesForCompute(occurrences);
+  const pointsUsed = computeOccurrences.length;
   const computedAt = Date.now();
-  const inputHash = hashOccurrencesForAOO(validOccurrences, cellSizeMeters);
+  const inputHash = hashOccurrencesForAOO(computeOccurrences, cellSizeMeters);
 
   if (pointsUsed === 0) {
     return {
@@ -61,7 +55,7 @@ export function computeAOO({
   }
 
   const occupiedCells = computeOccupiedCells(
-    validOccurrences.map((occurrence) => ({
+    computeOccurrences.map((occurrence) => ({
       lon: occurrence.lon,
       lat: occurrence.lat,
     })),

@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import {
+  DEFAULT_OCCURRENCE_CALC_STATUS,
   generateOccurrenceId,
   normalizeOccurrence,
   type Occurrence,
@@ -129,6 +130,7 @@ export function mapRowsToOccurrences(
       label: labelValue.length > 0 ? labelValue : undefined,
       source: "csv",
       raw: row,
+      calcStatus: DEFAULT_OCCURRENCE_CALC_STATUS,
     });
 
     if (!occurrence) {

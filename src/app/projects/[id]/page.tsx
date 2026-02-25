@@ -24,6 +24,12 @@ import { isAooStale } from "@/domain/usecases/aoo/is-aoo-stale";
 import { formatKm2 } from "@/domain/usecases/eoo/compute-eoo";
 import { isEooStale } from "@/domain/usecases/eoo/is-eoo-stale";
 import { inferCriterionB } from "@/domain/usecases/iucn/criterion-b";
+import {
+  generateOccurrenceId,
+  normalizeCalcStatus,
+  type Occurrence,
+} from "@/domain/entities/occurrence";
+import { selectOccurrencesForCompute } from "@/domain/usecases/occurrences/select-occurrences-for-compute";
 import { validateLatLon } from "@/domain/value-objects/latlon";
 import { debounce } from "@/lib/debounce";
 import { useWorkspaceStore } from "@/state/workspace.store";
@@ -111,6 +117,9 @@ export default function WorkspaceProjectPage() {
   const setProject = useWorkspaceStore((state) => state.setProject);
   const computeAOO = useWorkspaceStore((state) => state.computeAOO);
   const computeEOO = useWorkspaceStore((state) => state.computeEOO);
+  const addOccurrence = useWorkspaceStore((state) => state.addOccurrence);
+  const updateOccurrence = useWorkspaceStore((state) => state.updateOccurrence);
+  const deleteOccurrence = useWorkspaceStore((state) => state.deleteOccurrence);
   const saveProject = useWorkspaceStore((state) => state.saveProject);
 
   const [csvDraft, setCsvDraft] = useState<CsvDraft | null>(null);
@@ -207,11 +216,15 @@ export default function WorkspaceProjectPage() {
         valid: 0,
         invalid: 0,
         duplicateCandidates: 0,
+        disabled: 0,
       };
     }
 
     const invalid = project.occurrences.filter(
       (occurrence) => !validateLatLon(occurrence.lat, occurrence.lon).ok,
+    ).length;
+    const disabled = project.occurrences.filter(
+      (occurrence) => normalizeCalcStatus(occurrence.calcStatus) === "disabled",
     ).length;
     const duplicateCandidates = dedupeOccurrences(project.occurrences).removedCount;
 
@@ -220,6 +233,7 @@ export default function WorkspaceProjectPage() {
       valid: project.occurrences.length - invalid,
       invalid,
       duplicateCandidates,
+      disabled,
     };
   }, [project]);
 
@@ -258,8 +272,12 @@ export default function WorkspaceProjectPage() {
   const safePage = paginatedOccurrences.page;
   const eooResult = project?.results?.eoo;
   const aooResult = project?.results?.aoo;
-  const canComputeEOO = quality.valid >= 3;
-  const canComputeAOO = quality.valid >= 1;
+  const occurrencesForCompute = useMemo(
+    () => (project ? selectOccurrencesForCompute(project.occurrences) : []),
+    [project],
+  );
+  const canComputeEOO = occurrencesForCompute.length >= 3;
+  const canComputeAOO = occurrencesForCompute.length >= 1;
   const pagedOccurrences = paginatedOccurrences.items;
   const iucnBInput = project?.assessment?.iucnB;
   const criterionB = useMemo(
@@ -490,6 +508,56 @@ export default function WorkspaceProjectPage() {
     setQualityMessage("Todas as ocorrências foram removidas.");
   }
 
+  function handleToggleOccurrenceCalc(id: string) {
+    if (!project) {
+      return;
+    }
+
+    const target = project.occurrences.find((occurrence) => occurrence.id === id);
+
+    if (!target) {
+      return;
+    }
+
+    const nextStatus =
+      normalizeCalcStatus(target.calcStatus) === "enabled" ? "disabled" : "enabled";
+
+    updateOccurrence(id, { calcStatus: nextStatus });
+    setShowEOO(true);
+    setShowAOO(true);
+    setQualityMessage(
+      nextStatus === "enabled"
+        ? "Ponto habilitado para cálculo. EOO/AOO em recálculo automático."
+        : "Ponto desabilitado para cálculo. EOO/AOO em recálculo automático.",
+    );
+  }
+
+  function handleDeleteOccurrence(id: string) {
+    if (!project) {
+      return;
+    }
+
+    deleteOccurrence(id);
+    setShowEOO(true);
+    setShowAOO(true);
+    setQualityMessage("Ponto removido. EOO/AOO em recálculo automático.");
+  }
+
+  function handleAddOccurrenceFromMap(lat: number, lon: number) {
+    const newOccurrence: Occurrence = {
+      id: generateOccurrenceId(),
+      lat,
+      lon,
+      source: "manual",
+      calcStatus: "enabled",
+    };
+
+    addOccurrence(newOccurrence);
+    setShowEOO(true);
+    setShowAOO(true);
+    setQualityMessage("Ponto adicionado manualmente. EOO/AOO em recálculo automático.");
+  }
+
   if (isLoading) {
     return (
       <main className="mx-auto flex min-h-screen w-full items-center px-4 py-10 sm:px-6 lg:px-8">
@@ -693,12 +761,12 @@ export default function WorkspaceProjectPage() {
             </div>
             {!canComputeEOO && (
               <p className="text-xs text-amber-700">
-                São necessárias ao menos 3 ocorrências válidas para calcular o EOO.
+                São necessárias ao menos 3 ocorrências válidas e habilitadas para calcular o EOO.
               </p>
             )}
             {!canComputeAOO && (
               <p className="text-xs text-amber-700">
-                É necessária ao menos 1 ocorrência válida para calcular o AOO.
+                É necessária ao menos 1 ocorrência válida e habilitada para calcular o AOO.
               </p>
             )}
           </div>
@@ -891,7 +959,7 @@ export default function WorkspaceProjectPage() {
                   </p>
                   <p className="text-xs">
                     <span className="font-semibold">Status de evidência:</span>{" "}
-                    subcritérios suficientes (&gt;=2 entre a/b/c).
+                    subcritérios suficientes (pelo menos 2 entre a/b/c).
                   </p>
                   {criterionB.suggestedCode && (
                     <p>
@@ -966,6 +1034,9 @@ export default function WorkspaceProjectPage() {
                 eoo={eooResult}
                 aoo={aooResult}
                 onToggleOccurrences={() => setShowOccurrences((current) => !current)}
+                onAddOccurrence={handleAddOccurrenceFromMap}
+                onToggleOccurrenceCalc={handleToggleOccurrenceCalc}
+                onDeleteOccurrence={handleDeleteOccurrence}
               />
             </Card.Main>
           </Card>
@@ -1159,7 +1230,7 @@ export default function WorkspaceProjectPage() {
               Qualidade
             </Card.Header>
             <Card.Main className="space-y-4 pb-6">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm">
                   <span className="font-medium">Total</span>
                   <p className="text-xl font-semibold">{quality.total}</p>
@@ -1175,6 +1246,10 @@ export default function WorkspaceProjectPage() {
                 <div className="rounded-lg bg-indigo-100 px-3 py-2 text-sm text-indigo-900">
                   <span className="font-medium">Duplicadas</span>
                   <p className="text-xl font-semibold">{quality.duplicateCandidates}</p>
+                </div>
+                <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <span className="font-medium">Desabilitadas</span>
+                  <p className="text-xl font-semibold">{quality.disabled}</p>
                 </div>
               </div>
 
@@ -1254,26 +1329,67 @@ export default function WorkspaceProjectPage() {
                       <th className="px-3 py-2 font-semibold">Lon</th>
                       <th className="px-3 py-2 font-semibold">ID</th>
                       <th className="px-3 py-2 font-semibold">Origem</th>
+                      <th className="px-3 py-2 font-semibold">Cálculo</th>
+                      <th className="px-3 py-2 font-semibold">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pagedOccurrences.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                        <td colSpan={7} className="px-3 py-4 text-center text-slate-500">
                           Nenhuma ocorrência para exibir.
                         </td>
                       </tr>
                     )}
 
-                    {pagedOccurrences.map((occurrence) => (
-                      <tr key={occurrence.id} className="border-t border-slate-100">
-                        <td className="px-3 py-2 text-slate-700">{occurrence.label ?? "-"}</td>
+                    {pagedOccurrences.map((occurrence) => {
+                      const isDisabled =
+                        normalizeCalcStatus(occurrence.calcStatus) === "disabled";
+
+                      return (
+                        <tr
+                          key={occurrence.id}
+                          className={`border-t border-slate-100 ${
+                            isDisabled ? "bg-amber-50" : ""
+                          }`}
+                        >
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="flex items-center gap-2">
+                            <span>{occurrence.label ?? "-"}</span>
+                            {isDisabled && (
+                              <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-900">
+                                Desabilitado
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-slate-700">{occurrence.lat.toFixed(6)}</td>
                         <td className="px-3 py-2 text-slate-700">{occurrence.lon.toFixed(6)}</td>
                         <td className="px-3 py-2 text-slate-500">{occurrence.id}</td>
                         <td className="px-3 py-2 text-slate-700">{occurrence.source ?? "-"}</td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <label className="inline-flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                              checked={!isDisabled}
+                              onChange={() => handleToggleOccurrenceCalc(occurrence.id)}
+                            />
+                            {isDisabled ? "Excluído do cálculo" : "Incluído no cálculo"}
+                          </label>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost-danger"
+                            className="text-xs"
+                            onClick={() => handleDeleteOccurrence(occurrence.id)}
+                          >
+                            Excluir
+                          </Button>
+                        </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>

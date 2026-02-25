@@ -2,7 +2,7 @@ import * as turf from "@turf/turf";
 import type { Feature, Point, Polygon } from "geojson";
 import type { Occurrence } from "@/domain/entities/occurrence";
 import { hashOccurrencesForEOO } from "@/domain/usecases/hash/hash-occurrences-for-eoo";
-import { validateLatLon } from "@/domain/value-objects/latlon";
+import { selectOccurrencesForCompute } from "@/domain/usecases/occurrences/select-occurrences-for-compute";
 
 export type ComputeEooParams = {
   occurrences: Occurrence[];
@@ -20,12 +20,6 @@ type ValidOccurrencePoint = {
   lat: number;
   lon: number;
 };
-
-function toValidOccurrences(occurrences: Occurrence[]): Occurrence[] {
-  return occurrences.filter((occurrence) =>
-    validateLatLon(occurrence.lat, occurrence.lon).ok,
-  );
-}
 
 function toValidOccurrencePoints(occurrences: Occurrence[]): ValidOccurrencePoint[] {
   return occurrences.map((occurrence) => ({
@@ -46,10 +40,10 @@ export function formatKm2(value: number): string {
 }
 
 export function computeEOO({ occurrences }: ComputeEooParams): ComputeEooResult {
-  const validOccurrences = toValidOccurrences(occurrences);
-  const validPoints = toValidOccurrencePoints(validOccurrences);
+  const computeOccurrences = selectOccurrencesForCompute(occurrences);
+  const validPoints = toValidOccurrencePoints(computeOccurrences);
   const computedAt = Date.now();
-  const inputHash = hashOccurrencesForEOO(validOccurrences);
+  const inputHash = hashOccurrencesForEOO(computeOccurrences);
 
   if (validPoints.length < 3) {
     return {

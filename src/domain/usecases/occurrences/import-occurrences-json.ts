@@ -1,4 +1,5 @@
 import {
+  DEFAULT_OCCURRENCE_CALC_STATUS,
   generateOccurrenceId,
   normalizeOccurrence,
   type Occurrence,
@@ -31,6 +32,7 @@ function toOccurrenceFromSimpleObject(item: JsonObject): Partial<Occurrence> {
     lat: parseCoordinate(item.lat),
     lon: parseCoordinate(item.lon),
     source: "json",
+    calcStatus: DEFAULT_OCCURRENCE_CALC_STATUS,
     raw: toRawRecord(item),
   };
 }
@@ -49,6 +51,7 @@ function toOccurrenceFromGeoJsonFeature(feature: JsonObject): Partial<Occurrence
     lat: parseCoordinate(lat),
     lon: parseCoordinate(lon),
     source: "json",
+    calcStatus: DEFAULT_OCCURRENCE_CALC_STATUS,
     raw: {
       feature,
     },
@@ -127,6 +130,7 @@ export function importOccurrencesFromJson(
         lat: Number.NaN,
         lon: Number.NaN,
         source: "json",
+        calcStatus: DEFAULT_OCCURRENCE_CALC_STATUS,
         raw: { value: item },
       };
     });

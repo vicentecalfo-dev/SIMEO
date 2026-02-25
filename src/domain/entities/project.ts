@@ -1,4 +1,5 @@
 import type { Occurrence } from "@/domain/entities/occurrence";
+import { normalizeCalcStatus } from "@/domain/entities/occurrence";
 import type * as GeoJSON from "geojson";
 
 export interface EooResult {
@@ -270,7 +271,10 @@ export function withProjectDefaults(project: Project): Project {
         : DEFAULT_AOO_CELL_SIZE_METERS,
     },
     occurrences: Array.isArray(maybeProject.occurrences)
-      ? maybeProject.occurrences.map((occurrence) => ({ ...occurrence }))
+      ? maybeProject.occurrences.map((occurrence) => ({
+          ...occurrence,
+          calcStatus: normalizeCalcStatus(occurrence.calcStatus),
+        }))
       : [],
     results:
       eooResult || aooResult

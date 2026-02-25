@@ -47,6 +47,8 @@ npm run test:coverage
   - `CR <= 1`, `EN <= 5`, `VU <= 10`
 - A sugestão automática **não** representa categoria final IUCN; a decisão final depende de julgamento técnico e de outros critérios/subcritérios.
 - O conceito de “localidade” depende da ameaça mais séria e do julgamento do assessor.
+- Marco 9: curadoria manual de ocorrências no workspace (adicionar no mapa, excluir e habilitar/desabilitar para cálculo).
+- Ocorrências desabilitadas são preservadas no projeto, mas ficam fora dos cálculos/hashes de EOO/AOO e aparecem em amarelo no mapa.
 - Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
 - No workspace (`/projects/[id]`), nome do projeto e tamanho da célula AOO possuem autosave local com debounce.
 - Importação de ocorrências disponível no workspace para CSV (com mapeamento de colunas) e JSON simples.

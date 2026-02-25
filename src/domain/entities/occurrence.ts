@@ -1,5 +1,9 @@
 import { validateLatLon } from "@/domain/value-objects/latlon";
 
+export type OccurrenceCalcStatus = "enabled" | "disabled";
+
+export const DEFAULT_OCCURRENCE_CALC_STATUS: OccurrenceCalcStatus = "enabled";
+
 export interface Occurrence {
   id: string;
   lat: number;
@@ -8,6 +12,17 @@ export interface Occurrence {
   source?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Estrutura auditável temporária da linha original.
   raw?: Record<string, any>;
+  calcStatus?: OccurrenceCalcStatus;
+}
+
+export function normalizeCalcStatus(
+  calcStatus: unknown,
+): OccurrenceCalcStatus {
+  return calcStatus === "disabled" ? "disabled" : DEFAULT_OCCURRENCE_CALC_STATUS;
+}
+
+export function isOccurrenceEnabledForCompute(occurrence: Occurrence): boolean {
+  return normalizeCalcStatus(occurrence.calcStatus) === "enabled";
 }
 
 function randomOccurrenceIdFallback(): string {
@@ -46,6 +61,7 @@ export function normalizeOccurrence(
     id: normalizedId,
     lat: input.lat,
     lon: input.lon,
+    calcStatus: normalizeCalcStatus(input.calcStatus),
   };
 
   if (typeof input.label === "string") {

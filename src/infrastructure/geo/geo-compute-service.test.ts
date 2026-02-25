@@ -63,6 +63,7 @@ describe("geo-compute-service fallback", () => {
         lat: -12,
         lon: -47,
         label: "Teste",
+        calcStatus: "enabled",
         raw: {
           metadata: {
             fonte: "gbif",

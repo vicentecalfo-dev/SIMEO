@@ -1,6 +1,6 @@
 import type { Occurrence } from "@/domain/entities/occurrence";
 import { round } from "@/lib/math";
-import { validateLatLon } from "@/domain/value-objects/latlon";
+import { selectOccurrencesForCompute } from "@/domain/usecases/occurrences/select-occurrences-for-compute";
 
 type NormalizedOccurrenceHashInput = {
   lat: number;
@@ -14,11 +14,7 @@ function normalizeLabel(label: string | undefined): string {
 
 function normalizeOccurrence(
   occurrence: Occurrence,
-): NormalizedOccurrenceHashInput | null {
-  if (!validateLatLon(occurrence.lat, occurrence.lon).ok) {
-    return null;
-  }
-
+): NormalizedOccurrenceHashInput {
   return {
     lat: round(occurrence.lat, 6),
     lon: round(occurrence.lon, 6),
@@ -68,9 +64,8 @@ function fnv1a32(text: string): string {
 }
 
 export function hashOccurrencesForEOO(occurrences: Occurrence[]): string {
-  const canonicalRows = occurrences
+  const canonicalRows = selectOccurrencesForCompute(occurrences)
     .map((occurrence) => normalizeOccurrence(occurrence))
-    .filter((occurrence): occurrence is NormalizedOccurrenceHashInput => occurrence !== null)
     .sort(compareNormalizedOccurrences)
     .map(
       (occurrence) =>

@@ -1,4 +1,7 @@
-import type { Occurrence } from "@/domain/entities/occurrence";
+import {
+  normalizeCalcStatus,
+  type Occurrence,
+} from "@/domain/entities/occurrence";
 import {
   computeAOO,
   type ComputeAooResult,
@@ -113,6 +116,7 @@ export function serializeOccurrencesForWorker(
       id: occurrence.id,
       lat: occurrence.lat,
       lon: occurrence.lon,
+      calcStatus: normalizeCalcStatus(occurrence.calcStatus),
     };
 
     if (typeof occurrence.label === "string") {

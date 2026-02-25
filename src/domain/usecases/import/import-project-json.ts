@@ -1,10 +1,10 @@
 import {
   generateProjectId,
-  withProjectDefaults,
   type Project,
 } from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import type { SimeoExport } from "@/domain/usecases/export/export-project-json";
+import { normalizeProject } from "@/domain/usecases/projects/normalize-project";
 
 function parseUnknownInput(input: unknown): unknown {
   if (typeof input === "string") {
@@ -58,7 +58,7 @@ function validateProject(projectValue: unknown): Project {
     throw new Error("occurrences inválido");
   }
 
-  return withProjectDefaults(project as Project);
+  return normalizeProject(project as Project);
 }
 
 function validateSimeoEnvelope(value: unknown): SimeoExport {
@@ -102,7 +102,7 @@ export async function importProjectJson(
 ): Promise<Project> {
   const parsedInput = parseUnknownInput(input);
   const envelope = validateSimeoEnvelope(parsedInput);
-  const importedProject = withProjectDefaults(envelope.project);
+  const importedProject = normalizeProject(envelope.project);
 
   const existing = await repo.getById(importedProject.id);
   const targetProject = existing

@@ -5,7 +5,7 @@ import { isAooStale } from "@/domain/usecases/aoo/is-aoo-stale";
 import { hashOccurrencesForAOO } from "@/domain/usecases/hash/hash-occurrences-for-aoo";
 
 function occ(id: string, lat: number, lon: number): Occurrence {
-  return { id, lat, lon };
+  return { id, lat, lon, calcStatus: "enabled" };
 }
 
 function projectFixture(occurrences: Occurrence[], cellSizeMeters: number): Project {
@@ -84,6 +84,40 @@ describe("isAooStale", () => {
 
     const project: Project = {
       ...projectFixture(occurrences, 1000),
+      results: {
+        aoo: {
+          areaKm2: 8,
+          cellCount: 2,
+          cellSizeMeters: 2000,
+          grid: {
+            type: "FeatureCollection",
+            features: [],
+          },
+          computedAt: 123,
+          inputHash: hash,
+          pointsUsed: 2,
+        },
+      },
+    };
+
+    expect(isAooStale(project)).toBe(true);
+  });
+
+  it("retorna true quando ocorrência é desabilitada após cálculo", () => {
+    const occurrences = [occ("a", -10, -50), occ("b", -11, -51)];
+    const hash = hashOccurrencesForAOO(occurrences, 2000);
+
+    const project: Project = {
+      ...projectFixture(
+        [
+          occurrences[0]!,
+          {
+            ...occurrences[1]!,
+            calcStatus: "disabled",
+          },
+        ],
+        2000,
+      ),
       results: {
         aoo: {
           areaKm2: 8,

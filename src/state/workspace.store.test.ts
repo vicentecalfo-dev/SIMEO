@@ -83,6 +83,23 @@ function projectFixture(id = "p-1"): Project {
   };
 }
 
+async function waitForCondition(
+  condition: () => boolean,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const startedAt = Date.now();
+
+  while (!condition()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error("timeout aguardando condição no teste");
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+  }
+}
+
 describe("workspace.store", () => {
   it("loadProject carrega corretamente", async () => {
     const repo = new InMemoryProjectRepository();
@@ -181,5 +198,70 @@ describe("workspace.store", () => {
     expect(useWorkspaceStore.getState().project?.results?.aoo?.cellCount).toBeGreaterThan(0);
 
     vi.restoreAllMocks();
+  });
+
+  it("add/update/delete occurrence alteram lista e marcam dirty", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+
+    useWorkspaceStore.getState().addOccurrence({
+      id: "manual-1",
+      lat: -10,
+      lon: -50,
+      source: "manual",
+      calcStatus: "enabled",
+    });
+
+    expect(useWorkspaceStore.getState().project?.occurrences).toHaveLength(1);
+    expect(useWorkspaceStore.getState().isDirty).toBe(true);
+
+    useWorkspaceStore.getState().updateOccurrence("manual-1", {
+      calcStatus: "disabled",
+      label: "Editado",
+    });
+
+    expect(useWorkspaceStore.getState().project?.occurrences[0]?.calcStatus).toBe(
+      "disabled",
+    );
+    expect(useWorkspaceStore.getState().project?.occurrences[0]?.label).toBe("Editado");
+
+    useWorkspaceStore.getState().deleteOccurrence("manual-1");
+    expect(useWorkspaceStore.getState().project?.occurrences).toHaveLength(0);
+  });
+
+  it("toggle calcStatus dispara recálculo automático de EOO/AOO", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    project.occurrences = [
+      { id: "a", lat: 0, lon: 0, calcStatus: "enabled" },
+      { id: "b", lat: 0, lon: 0.01, calcStatus: "enabled" },
+      { id: "c", lat: 0.01, lon: 0, calcStatus: "enabled" },
+    ];
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+    await useWorkspaceStore.getState().computeEOO();
+    await useWorkspaceStore.getState().computeAOO();
+
+    useWorkspaceStore.getState().updateOccurrence("c", { calcStatus: "disabled" });
+
+    await waitForCondition(() => {
+      const state = useWorkspaceStore.getState();
+      return (
+        state.isComputingEOO === false &&
+        state.isComputingAOO === false &&
+        state.project?.results?.eoo?.pointsUsed === 2 &&
+        state.project?.results?.aoo?.pointsUsed === 2
+      );
+    });
+
+    const state = useWorkspaceStore.getState();
+    expect(state.project?.results?.eoo?.pointsUsed).toBe(2);
+    expect(state.project?.results?.aoo?.pointsUsed).toBe(2);
   });
 });

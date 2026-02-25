@@ -12,6 +12,7 @@ describe("normalizeOccurrence", () => {
     expect(normalized).not.toBeNull();
     expect(normalized?.id).toBeTypeOf("string");
     expect((normalized?.id.length ?? 0) > 0).toBe(true);
+    expect(normalized?.calcStatus).toBe("enabled");
   });
 
   it("mantem id existente quando informado", () => {

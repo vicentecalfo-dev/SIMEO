@@ -8,6 +8,7 @@ function occ(id: string, lat: number, lon: number, label?: string): Occurrence {
     lat,
     lon,
     label,
+    calcStatus: "enabled",
   };
 }
 
@@ -78,5 +79,22 @@ describe("computeEOO", () => {
     const expectedKm2 = 12364;
     const tolerance = expectedKm2 * 0.2;
     expect(Math.abs(result.areaKm2 - expectedKm2)).toBeLessThanOrEqual(tolerance);
+  });
+
+  it("ignora pontos desabilitados no cálculo", () => {
+    const result = computeEOO({
+      occurrences: [
+        occ("a", 0, 0),
+        occ("b", 0, 1),
+        occ("c", 1, 0),
+        {
+          ...occ("d", 10, 10),
+          calcStatus: "disabled",
+        },
+      ],
+    });
+
+    expect(result.pointsUsed).toBe(3);
+    expect(result.hull).not.toBeNull();
   });
 });
