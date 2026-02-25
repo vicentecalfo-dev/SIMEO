@@ -13,28 +13,28 @@ function pointFromMeters(x: number, y: number): { lon: number; lat: number } {
 describe("aoo-grid", () => {
   it("deduplica pontos na mesma célula", () => {
     const cellSizeMeters = 2000;
-    const points = [pointFromMeters(0, 0), pointFromMeters(1999, 100)];
+    const points = [pointFromMeters(10_000, 10_000), pointFromMeters(11_999, 10_100)];
 
     const occupiedCells = computeOccupiedCells(points, cellSizeMeters);
 
     expect(occupiedCells.size).toBe(1);
-    expect(occupiedCells.has("0|0")).toBe(true);
+    expect(occupiedCells.has("5|5")).toBe(true);
   });
 
   it("separa pontos em células diferentes", () => {
     const cellSizeMeters = 2000;
-    const points = [pointFromMeters(0, 0), pointFromMeters(2100, 0)];
+    const points = [pointFromMeters(10_000, 10_000), pointFromMeters(12_100, 10_000)];
 
     const occupiedCells = computeOccupiedCells(points, cellSizeMeters);
 
     expect(occupiedCells.size).toBe(2);
-    expect(occupiedCells.has("0|0")).toBe(true);
-    expect(occupiedCells.has("1|0")).toBe(true);
+    expect(occupiedCells.has("5|5")).toBe(true);
+    expect(occupiedCells.has("6|5")).toBe(true);
   });
 
   it("gera GeoJSON previsível para células ocupadas", () => {
     const cellSizeMeters = 2000;
-    const points = [pointFromMeters(0, 0), pointFromMeters(2100, 0)];
+    const points = [pointFromMeters(10_000, 10_000), pointFromMeters(12_100, 10_000)];
     const occupiedCells = computeOccupiedCells(points, cellSizeMeters);
 
     const geoJson = buildAooGridGeoJson(occupiedCells, cellSizeMeters);

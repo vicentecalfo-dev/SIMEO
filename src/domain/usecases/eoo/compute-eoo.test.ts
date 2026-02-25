@@ -44,7 +44,7 @@ describe("computeEOO", () => {
     vi.spyOn(Date, "now").mockReturnValue(123456789);
 
     const result = computeEOO({
-      occurrences: [occ("a", 0, 0), occ("b", 0, 1), occ("c", 1, 0)],
+      occurrences: [occ("a", -10, -50), occ("b", -10, -49), occ("c", -9, -50)],
     });
 
     expect(result.hull).not.toBeNull();
@@ -64,10 +64,10 @@ describe("computeEOO", () => {
   it("gera área consistente para quadrado e ignora pontos inválidos", () => {
     const result = computeEOO({
       occurrences: [
-        occ("a", 0, 0),
-        occ("b", 0, 1),
-        occ("c", 1, 1),
-        occ("d", 1, 0),
+        occ("a", -10, -50),
+        occ("b", -10, -49),
+        occ("c", -9, -49),
+        occ("d", -9, -50),
         occ("inv", 1000, 0),
       ],
     });
@@ -84,9 +84,9 @@ describe("computeEOO", () => {
   it("ignora pontos desabilitados no cálculo", () => {
     const result = computeEOO({
       occurrences: [
-        occ("a", 0, 0),
-        occ("b", 0, 1),
-        occ("c", 1, 0),
+        occ("a", -10, -50),
+        occ("b", -10, -49),
+        occ("c", -9, -50),
         {
           ...occ("d", 10, 10),
           calcStatus: "disabled",

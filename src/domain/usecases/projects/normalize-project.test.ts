@@ -63,6 +63,15 @@ describe("normalizeProject", () => {
       eoo: true,
       aoo: true,
     });
+    expect(normalized.mapbiomas).toEqual({
+      config: {
+        targetShape: "EOO",
+        naturalClasses: [1, 3, 4, 5],
+        samplingStep: 4,
+      },
+      datasets: [],
+      results: undefined,
+    });
     expect(Array.isArray(normalized.occurrences)).toBe(true);
     expect(normalized.occurrences).toHaveLength(0);
   });
@@ -92,6 +101,108 @@ describe("normalizeProject", () => {
       occurrences: false,
       eoo: true,
       aoo: true,
+    });
+  });
+
+  it("normaliza mapbiomas com defaults quando dados inválidos", () => {
+    const project = {
+      id: "proj-5",
+      name: "Projeto MB",
+      createdAt: 100,
+      updatedAt: 100,
+      settings: {
+        aooCellSizeMeters: 2000,
+      },
+      occurrences: [],
+      mapbiomas: {
+        config: {
+          targetShape: "INVALID",
+          naturalClasses: ["x", 3, 3, -1],
+          samplingStep: 123,
+        },
+        datasets: [
+          {
+            id: "d-1",
+            sourceType: "url",
+            year: 2020,
+            url: "https://storage.googleapis.com/mapbiomas-public/a.tif",
+            addedAt: 111,
+          },
+          {
+            id: "d-legacy",
+            year: 2021,
+            fileName: "legacy.tif",
+            addedAt: 222,
+          },
+          {
+            id: "",
+            year: "x",
+            fileName: "",
+            addedAt: 0,
+          },
+        ],
+      },
+    } as unknown as Project;
+
+    const normalized = normalizeProject(project);
+
+    expect(normalized.mapbiomas?.config).toEqual({
+      targetShape: "EOO",
+      naturalClasses: [3],
+      samplingStep: 4,
+    });
+    expect(normalized.mapbiomas?.datasets).toHaveLength(2);
+    expect(normalized.mapbiomas?.datasets[0]).toEqual({
+      id: "d-1",
+      sourceType: "url",
+      year: 2020,
+      url: "https://storage.googleapis.com/mapbiomas-public/a.tif",
+      addedAt: 111,
+    });
+    expect(normalized.mapbiomas?.datasets[1]).toEqual({
+      id: "d-legacy",
+      sourceType: "file",
+      year: 2021,
+      fileName: "legacy.tif",
+      addedAt: 222,
+    });
+  });
+
+  it("normaliza dataset legado sem sourceType como arquivo", () => {
+    const project = {
+      id: "proj-6",
+      name: "Projeto MB legado",
+      createdAt: 100,
+      updatedAt: 100,
+      settings: {
+        aooCellSizeMeters: 2000,
+      },
+      occurrences: [],
+      mapbiomas: {
+        config: {
+          targetShape: "EOO",
+          naturalClasses: [1, 3],
+          samplingStep: 4,
+        },
+        datasets: [
+          {
+            id: "legacy-1",
+            year: 2019,
+            fileName: "mb-2019.tif",
+            addedAt: 77,
+          },
+        ],
+      },
+    } as unknown as Project;
+
+    const normalized = normalizeProject(project);
+
+    expect(normalized.mapbiomas?.datasets[0]).toEqual({
+      id: "legacy-1",
+      sourceType: "file",
+      year: 2019,
+      fileName: "mb-2019.tif",
+      addedAt: 77,
     });
   });
 });

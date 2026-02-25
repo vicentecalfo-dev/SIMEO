@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import { normalizeCalcStatus } from "@/domain/entities/occurrence";
 import { normalizeMapLayerVisibility } from "@/domain/entities/map-layers";
-import type { Project } from "@/domain/entities/project";
+import {
+  DEFAULT_MAPBIOMAS_NATURAL_CLASSES,
+  DEFAULT_MAPBIOMAS_SAMPLING_STEP,
+  type MapBiomasConfig,
+  type MapBiomasDatasetMeta,
+  type Project,
+} from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import { hashOccurrencesForAOO } from "@/domain/usecases/hash/hash-occurrences-for-aoo";
 import { hashOccurrencesForEOO } from "@/domain/usecases/hash/hash-occurrences-for-eoo";
@@ -25,6 +31,25 @@ function toErrorMessage(error: unknown): string {
   return "erro inesperado";
 }
 
+function defaultMapBiomasConfig(): MapBiomasConfig {
+  return {
+    targetShape: "EOO",
+    naturalClasses: [...DEFAULT_MAPBIOMAS_NATURAL_CLASSES],
+    samplingStep: DEFAULT_MAPBIOMAS_SAMPLING_STEP,
+  };
+}
+
+function generateMapBiomasDatasetId(): string {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `mapbiomas-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export interface WorkspaceState {
   project: Project | null;
   isLoading: boolean;
@@ -41,6 +66,21 @@ export interface WorkspaceState {
     patch: Partial<Project["occurrences"][number]>,
   ) => void;
   deleteOccurrence: (id: string) => void;
+  setMapBiomasConfig: (
+    patch: Partial<NonNullable<Project["mapbiomas"]>["config"]>,
+  ) => void;
+  addMapBiomasDatasetFromUrl: (payload: {
+    year: number;
+    url: string;
+    label?: string;
+  }) => void;
+  addMapBiomasDatasetFromFile: (payload: {
+    year: number;
+    fileName: string;
+    label?: string;
+  }) => void;
+  removeMapBiomasDataset: (datasetId: string) => void;
+  clearMapBiomasResults: () => void;
   computeAOO: () => Promise<void>;
   computeEOO: () => Promise<void>;
   saveProject: () => Promise<void>;
@@ -208,6 +248,23 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
                         : state.project.assessment?.iucnB,
                   }
                 : state.project.assessment,
+            mapbiomas:
+              partialUpdate.mapbiomas !== undefined
+                ? {
+                    config: {
+                      ...(state.project.mapbiomas?.config ?? defaultMapBiomasConfig()),
+                      ...partialUpdate.mapbiomas.config,
+                    },
+                    datasets:
+                      partialUpdate.mapbiomas.datasets !== undefined
+                        ? [...partialUpdate.mapbiomas.datasets]
+                        : [...(state.project.mapbiomas?.datasets ?? [])],
+                    results:
+                      partialUpdate.mapbiomas.results !== undefined
+                        ? partialUpdate.mapbiomas.results
+                        : state.project.mapbiomas?.results,
+                  }
+                : state.project.mapbiomas,
           };
 
           return {
@@ -290,6 +347,150 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
         });
 
         scheduleAutoRecompute();
+      },
+      setMapBiomasConfig(patch) {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          return {
+            project: {
+              ...state.project,
+              mapbiomas: {
+                config: {
+                  ...(state.project.mapbiomas?.config ?? defaultMapBiomasConfig()),
+                  ...patch,
+                },
+                datasets: [...(state.project.mapbiomas?.datasets ?? [])],
+                results: state.project.mapbiomas?.results,
+              },
+            },
+            isDirty: true,
+            error: undefined,
+            computeError: undefined,
+          };
+        });
+      },
+      addMapBiomasDatasetFromUrl(payload) {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          const label =
+            typeof payload.label === "string" && payload.label.trim().length > 0
+              ? payload.label.trim()
+              : undefined;
+          const datasetMeta: MapBiomasDatasetMeta = {
+            id: generateMapBiomasDatasetId(),
+            sourceType: "url",
+            year: Math.trunc(payload.year),
+            url: payload.url.trim(),
+            label,
+            addedAt: Date.now(),
+          };
+
+          return {
+            project: {
+              ...state.project,
+              mapbiomas: {
+                config: {
+                  ...(state.project.mapbiomas?.config ?? defaultMapBiomasConfig()),
+                },
+                datasets: [...(state.project.mapbiomas?.datasets ?? []), datasetMeta],
+                results: state.project.mapbiomas?.results,
+              },
+            },
+            isDirty: true,
+            error: undefined,
+            computeError: undefined,
+          };
+        });
+      },
+      addMapBiomasDatasetFromFile(payload) {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          const label =
+            typeof payload.label === "string" && payload.label.trim().length > 0
+              ? payload.label.trim()
+              : undefined;
+          const datasetMeta: MapBiomasDatasetMeta = {
+            id: generateMapBiomasDatasetId(),
+            sourceType: "file",
+            year: Math.trunc(payload.year),
+            fileName: payload.fileName.trim(),
+            label,
+            addedAt: Date.now(),
+          };
+
+          return {
+            project: {
+              ...state.project,
+              mapbiomas: {
+                config: {
+                  ...(state.project.mapbiomas?.config ?? defaultMapBiomasConfig()),
+                },
+                datasets: [...(state.project.mapbiomas?.datasets ?? []), datasetMeta],
+                results: state.project.mapbiomas?.results,
+              },
+            },
+            isDirty: true,
+            error: undefined,
+            computeError: undefined,
+          };
+        });
+      },
+      removeMapBiomasDataset(datasetId) {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          return {
+            project: {
+              ...state.project,
+              mapbiomas: {
+                config: {
+                  ...(state.project.mapbiomas?.config ?? defaultMapBiomasConfig()),
+                },
+                datasets: (state.project.mapbiomas?.datasets ?? []).filter(
+                  (dataset) => dataset.id !== datasetId,
+                ),
+                results: state.project.mapbiomas?.results,
+              },
+            },
+            isDirty: true,
+            error: undefined,
+            computeError: undefined,
+          };
+        });
+      },
+      clearMapBiomasResults() {
+        set((state) => {
+          if (!state.project) {
+            return state;
+          }
+
+          return {
+            project: {
+              ...state.project,
+              mapbiomas: {
+                config: {
+                  ...(state.project.mapbiomas?.config ?? defaultMapBiomasConfig()),
+                },
+                datasets: [...(state.project.mapbiomas?.datasets ?? [])],
+                results: undefined,
+              },
+            },
+            isDirty: true,
+            error: undefined,
+            computeError: undefined,
+          };
+        });
       },
       async computeEOO() {
         const current = get().project;

@@ -58,7 +58,7 @@ function validateProject(projectValue: unknown): Project {
     throw new Error("occurrences inválido");
   }
 
-  return normalizeProject(project as Project);
+  return normalizeProject(project as unknown as Project);
 }
 
 function validateSimeoEnvelope(value: unknown): SimeoExport {

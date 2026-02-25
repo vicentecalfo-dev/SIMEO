@@ -51,6 +51,54 @@ export interface ProjectAssessment {
   iucnB?: IucnCriterionBInput;
 }
 
+export type MapBiomasTargetShape = "EOO" | "AOO";
+
+export interface MapBiomasConfig {
+  targetShape: MapBiomasTargetShape;
+  naturalClasses: number[];
+  samplingStep: number;
+}
+
+export interface MapBiomasDatasetUrlMeta {
+  id: string;
+  sourceType: "url";
+  year: number;
+  url: string;
+  label?: string;
+  addedAt: number;
+}
+
+export interface MapBiomasDatasetFileMeta {
+  id: string;
+  sourceType: "file";
+  year: number;
+  fileName: string;
+  label?: string;
+  addedAt: number;
+}
+
+export type MapBiomasDatasetMeta =
+  | MapBiomasDatasetUrlMeta
+  | MapBiomasDatasetFileMeta;
+
+export interface MapBiomasYearResult {
+  year: number;
+  naturalPercent: number;
+  totalPixels: number;
+  naturalPixels: number;
+}
+
+export interface MapBiomasResults {
+  byYear: MapBiomasYearResult[];
+  generatedAt: number;
+}
+
+export interface ProjectMapBiomas {
+  config: MapBiomasConfig;
+  datasets: MapBiomasDatasetMeta[];
+  results?: MapBiomasResults;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -66,6 +114,7 @@ export interface Project {
   occurrences: Occurrence[];
   results?: ProjectResults;
   assessment?: ProjectAssessment;
+  mapbiomas?: ProjectMapBiomas;
 }
 
 export interface ProjectSummary {
@@ -80,6 +129,8 @@ function randomIdFallback(): string {
 }
 
 export const DEFAULT_AOO_CELL_SIZE_METERS = 2000;
+export const DEFAULT_MAPBIOMAS_NATURAL_CLASSES: number[] = [1, 3, 4, 5];
+export const DEFAULT_MAPBIOMAS_SAMPLING_STEP = 4;
 
 export function generateProjectId(): string {
   if (
@@ -108,6 +159,15 @@ export function newProject(name: string): Project {
       },
     },
     occurrences: [],
+    mapbiomas: {
+      config: {
+        targetShape: "EOO",
+        naturalClasses: [...DEFAULT_MAPBIOMAS_NATURAL_CLASSES],
+        samplingStep: DEFAULT_MAPBIOMAS_SAMPLING_STEP,
+      },
+      datasets: [],
+      results: undefined,
+    },
   };
 }
 
@@ -119,7 +179,48 @@ export function touchProject(project: Project): Project {
 }
 
 export function withProjectDefaults(project: Project): Project {
+  const samplingSteps = [1, 2, 4, 8];
   const validIucnItems: IucnCriterionBItem[] = ["i", "ii", "iii", "iv", "v"];
+
+  function normalizeTargetShape(value: unknown): MapBiomasTargetShape {
+    return value === "AOO" ? "AOO" : "EOO";
+  }
+
+  function normalizeNaturalClasses(value: unknown): number[] {
+    if (!Array.isArray(value)) {
+      return [...DEFAULT_MAPBIOMAS_NATURAL_CLASSES];
+    }
+
+    const normalized: number[] = [];
+    for (const entry of value) {
+      const asNumber = Number(entry);
+      const integer = Math.trunc(asNumber);
+
+      if (!Number.isFinite(asNumber) || integer < 0 || normalized.includes(integer)) {
+        continue;
+      }
+
+      normalized.push(integer);
+    }
+
+    return normalized.length > 0
+      ? normalized
+      : [...DEFAULT_MAPBIOMAS_NATURAL_CLASSES];
+  }
+
+  function normalizeSamplingStep(value: unknown): number {
+    const asNumber = Number(value);
+
+    if (!Number.isFinite(asNumber)) {
+      return DEFAULT_MAPBIOMAS_SAMPLING_STEP;
+    }
+
+    const normalized = Math.trunc(asNumber);
+
+    return samplingSteps.includes(normalized)
+      ? normalized
+      : DEFAULT_MAPBIOMAS_SAMPLING_STEP;
+  }
 
   function normalizeIucnItems(value: unknown): IucnCriterionBItem[] | undefined {
     if (!Array.isArray(value)) {
@@ -172,6 +273,18 @@ export function withProjectDefaults(project: Project): Project {
           enabled?: boolean;
           items?: IucnCriterionBItem[];
         };
+      };
+    };
+    mapbiomas?: {
+      config?: {
+        targetShape?: unknown;
+        naturalClasses?: unknown;
+        samplingStep?: unknown;
+      };
+      datasets?: unknown;
+      results?: {
+        byYear?: unknown;
+        generatedAt?: unknown;
       };
     };
   };
@@ -291,6 +404,112 @@ export function withProjectDefaults(project: Project): Project {
     }
   }
 
+  const baseMapBiomas = maybeProject.mapbiomas;
+  const mapbiomasConfig: MapBiomasConfig = {
+    targetShape: normalizeTargetShape(baseMapBiomas?.config?.targetShape),
+    naturalClasses: normalizeNaturalClasses(baseMapBiomas?.config?.naturalClasses),
+    samplingStep: normalizeSamplingStep(baseMapBiomas?.config?.samplingStep),
+  };
+
+  const mapbiomasDatasets: MapBiomasDatasetMeta[] = [];
+  if (Array.isArray(baseMapBiomas?.datasets)) {
+    for (const entry of baseMapBiomas.datasets) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+
+      const raw = entry as Partial<MapBiomasDatasetMeta> & {
+        sourceType?: unknown;
+        fileName?: unknown;
+        url?: unknown;
+        label?: unknown;
+      };
+      const id = typeof raw.id === "string" ? raw.id.trim() : "";
+      const year = Number(raw.year);
+      const addedAt = Number(raw.addedAt);
+      const label =
+        typeof raw.label === "string" && raw.label.trim().length > 0
+          ? raw.label.trim()
+          : undefined;
+
+      if (id.length === 0 || !Number.isFinite(year) || !Number.isFinite(addedAt)) {
+        continue;
+      }
+
+      if (raw.sourceType === "url") {
+        const url = typeof raw.url === "string" ? raw.url.trim() : "";
+
+        if (url.length === 0) {
+          continue;
+        }
+
+        mapbiomasDatasets.push({
+          id,
+          sourceType: "url",
+          year: Math.trunc(year),
+          url,
+          label,
+          addedAt: Number(addedAt),
+        });
+        continue;
+      }
+
+      // Retrocompatibilidade: datasets antigos sem sourceType eram arquivos.
+      const fileName = typeof raw.fileName === "string" ? raw.fileName.trim() : "";
+
+      if (fileName.length === 0) {
+        continue;
+      }
+
+      mapbiomasDatasets.push({
+        id,
+        sourceType: "file",
+        year: Math.trunc(year),
+        fileName,
+        label,
+        addedAt: Number(addedAt),
+      });
+    }
+  }
+
+  let mapbiomasResults: MapBiomasResults | undefined;
+  if (
+    baseMapBiomas?.results &&
+    Number.isFinite(baseMapBiomas.results.generatedAt) &&
+    Array.isArray(baseMapBiomas.results.byYear)
+  ) {
+    const byYear = baseMapBiomas.results.byYear
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") {
+          return null;
+        }
+
+        const raw = entry as Partial<MapBiomasYearResult>;
+
+        if (
+          !Number.isFinite(raw.year) ||
+          !Number.isFinite(raw.naturalPercent) ||
+          !Number.isFinite(raw.totalPixels) ||
+          !Number.isFinite(raw.naturalPixels)
+        ) {
+          return null;
+        }
+
+        return {
+          year: Math.trunc(Number(raw.year)),
+          naturalPercent: Number(raw.naturalPercent),
+          totalPixels: Math.trunc(Number(raw.totalPixels)),
+          naturalPixels: Math.trunc(Number(raw.naturalPixels)),
+        };
+      })
+      .filter((entry): entry is MapBiomasYearResult => entry !== null);
+
+    mapbiomasResults = {
+      byYear,
+      generatedAt: Number(baseMapBiomas.results.generatedAt),
+    };
+  }
+
   return {
     ...project,
     settings: {
@@ -322,5 +541,10 @@ export function withProjectDefaults(project: Project): Project {
           iucnB,
         }
       : undefined,
+    mapbiomas: {
+      config: mapbiomasConfig,
+      datasets: mapbiomasDatasets,
+      results: mapbiomasResults,
+    },
   };
 }

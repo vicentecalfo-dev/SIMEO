@@ -180,25 +180,23 @@ export function inferCriterionB(input: InferCriterionBInput): CriterionBInferenc
     ? SPATIAL_THRESHOLDS[spatialCategory]
     : null;
 
-  const b1Triggered =
-    Boolean(threshold) &&
-    isFiniteNumber(input.eooKm2) &&
-    input.eooKm2 < threshold.eooMaxExclusive;
+  const b1Triggered = threshold
+    ? isFiniteNumber(input.eooKm2) && input.eooKm2 < threshold.eooMaxExclusive
+    : false;
 
-  const b2Triggered =
-    Boolean(threshold) &&
-    isFiniteNumber(input.aooKm2) &&
-    input.aooKm2 < threshold.aooMaxExclusive;
+  const b2Triggered = threshold
+    ? isFiniteNumber(input.aooKm2) && input.aooKm2 < threshold.aooMaxExclusive
+    : false;
 
   const locations = input.assessment?.numberOfLocations;
   const hasValidLocationCount = isFiniteNumber(locations) && locations >= 0;
   const normalizedLocations = hasValidLocationCount ? Number(locations) : null;
 
-  const aSatisfied =
-    Boolean(threshold) &&
-    (input.assessment?.severelyFragmented === true ||
+  const aSatisfied = threshold
+    ? input.assessment?.severelyFragmented === true ||
       (normalizedLocations !== null &&
-        normalizedLocations <= threshold.locationsMaxInclusive));
+        normalizedLocations <= threshold.locationsMaxInclusive)
+    : false;
 
   const bSatisfied = input.assessment?.continuingDecline?.enabled === true;
   const cSatisfied = input.assessment?.extremeFluctuations?.enabled === true;

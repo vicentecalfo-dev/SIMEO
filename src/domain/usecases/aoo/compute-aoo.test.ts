@@ -30,7 +30,7 @@ describe("computeAOO", () => {
 
     const result = computeAOO({
       cellSizeMeters: 2000,
-      occurrences: [occFromMeters("a", 0, 0), occFromMeters("b", 1999, 100)],
+      occurrences: [occFromMeters("a", 10_000, 10_000), occFromMeters("b", 11_999, 10_100)],
     });
 
     expect(result.cellCount).toBe(1);
@@ -45,7 +45,7 @@ describe("computeAOO", () => {
   it("conta 2 células para pontos em células distintas", () => {
     const result = computeAOO({
       cellSizeMeters: 2000,
-      occurrences: [occFromMeters("a", 0, 0), occFromMeters("b", 2100, 0)],
+      occurrences: [occFromMeters("a", 10_000, 10_000), occFromMeters("b", 12_100, 10_000)],
     });
 
     expect(result.cellCount).toBe(2);
@@ -58,7 +58,7 @@ describe("computeAOO", () => {
     const result = computeAOO({
       cellSizeMeters: 2000,
       occurrences: [
-        occFromMeters("a", 0, 0),
+        occFromMeters("a", 10_000, 10_000),
         { id: "inv", lat: 999, lon: 999 },
       ],
     });
@@ -71,9 +71,9 @@ describe("computeAOO", () => {
     const result = computeAOO({
       cellSizeMeters: 2000,
       occurrences: [
-        occFromMeters("a", 0, 0),
+        occFromMeters("a", 10_000, 10_000),
         {
-          ...occFromMeters("b", 2100, 0),
+          ...occFromMeters("b", 12_100, 10_000),
           calcStatus: "disabled",
         },
       ],

@@ -16,10 +16,22 @@ export function computeOccupiedCells(
 
   const occupiedCells = new Map<CellKey, { cx: number; cy: number }>();
 
+  function toCellIndex(valueMeters: number): number {
+    const rawIndex = valueMeters / cellSizeMeters;
+    const nearestInteger = Math.round(rawIndex);
+
+    // Evita instabilidade de ponto flutuante ao redor de fronteiras.
+    if (Math.abs(rawIndex - nearestInteger) < 1e-9) {
+      return nearestInteger;
+    }
+
+    return Math.floor(rawIndex);
+  }
+
   for (const point of pointsLonLat) {
     const { x, y } = lonLatToWebMercatorMeters(point.lon, point.lat);
-    const cx = Math.floor(x / cellSizeMeters);
-    const cy = Math.floor(y / cellSizeMeters);
+    const cx = toCellIndex(x);
+    const cy = toCellIndex(y);
     const key = `${cx}|${cy}`;
 
     if (!occupiedCells.has(key)) {

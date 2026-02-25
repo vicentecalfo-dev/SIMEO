@@ -153,9 +153,9 @@ describe("workspace.store", () => {
     const repo = new InMemoryProjectRepository();
     const project = projectFixture();
     project.occurrences = [
-      { id: "a", lat: 0, lon: 0 },
-      { id: "b", lat: 0, lon: 1 },
-      { id: "c", lat: 1, lon: 0 },
+      { id: "a", lat: -10, lon: -50 },
+      { id: "b", lat: -10, lon: -49 },
+      { id: "c", lat: -9, lon: -50 },
     ];
     await repo.create(project);
 
@@ -178,8 +178,8 @@ describe("workspace.store", () => {
     const repo = new InMemoryProjectRepository();
     const project = projectFixture();
     project.occurrences = [
-      { id: "a", lat: 0, lon: 0 },
-      { id: "b", lat: 0, lon: 0.0001 },
+      { id: "a", lat: -10, lon: -50 },
+      { id: "b", lat: -10, lon: -50.0001 },
     ];
     project.settings.aooCellSizeMeters = 2000;
     await repo.create(project);
@@ -237,9 +237,9 @@ describe("workspace.store", () => {
     const repo = new InMemoryProjectRepository();
     const project = projectFixture();
     project.occurrences = [
-      { id: "a", lat: 0, lon: 0, calcStatus: "enabled" },
-      { id: "b", lat: 0, lon: 0.01, calcStatus: "enabled" },
-      { id: "c", lat: 0.01, lon: 0, calcStatus: "enabled" },
+      { id: "a", lat: -10, lon: -50, calcStatus: "enabled" },
+      { id: "b", lat: -10, lon: -49.99, calcStatus: "enabled" },
+      { id: "c", lat: -9.99, lon: -50, calcStatus: "enabled" },
     ];
     await repo.create(project);
 
@@ -263,5 +263,165 @@ describe("workspace.store", () => {
     const state = useWorkspaceStore.getState();
     expect(state.project?.results?.eoo?.pointsUsed).toBe(2);
     expect(state.project?.results?.aoo?.pointsUsed).toBe(2);
+  });
+
+  it("setMapBiomasConfig atualiza config e marca dirty", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+
+    useWorkspaceStore.getState().setMapBiomasConfig({
+      targetShape: "AOO",
+      naturalClasses: [11, 12],
+      samplingStep: 8,
+    });
+
+    const state = useWorkspaceStore.getState();
+    expect(state.project?.mapbiomas?.config).toEqual({
+      targetShape: "AOO",
+      naturalClasses: [11, 12],
+      samplingStep: 8,
+    });
+    expect(state.isDirty).toBe(true);
+  });
+
+  it("addMapBiomasDatasetFromFile adiciona metadado de arquivo sem raster", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+
+    vi.spyOn(Date, "now").mockReturnValue(123);
+
+    useWorkspaceStore.getState().addMapBiomasDatasetFromFile({
+      year: 2023,
+      fileName: "mapbiomas-2023.tif",
+      label: "Colecao 2023",
+    });
+
+    const dataset = useWorkspaceStore.getState().project?.mapbiomas?.datasets[0];
+    expect(dataset?.sourceType).toBe("file");
+    expect(dataset?.year).toBe(2023);
+    expect(dataset?.addedAt).toBe(123);
+    expect(dataset?.id).toBeTruthy();
+    expect(dataset?.label).toBe("Colecao 2023");
+    if (dataset?.sourceType === "file") {
+      expect(dataset.fileName).toBe("mapbiomas-2023.tif");
+    }
+    expect(useWorkspaceStore.getState().isDirty).toBe(true);
+
+    vi.restoreAllMocks();
+  });
+
+  it("addMapBiomasDatasetFromUrl adiciona metadado de URL crua", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+
+    vi.spyOn(Date, "now").mockReturnValue(456);
+
+    useWorkspaceStore.getState().addMapBiomasDatasetFromUrl({
+      year: 2022,
+      url: "https://storage.googleapis.com/mapbiomas-public/2022.tif",
+    });
+
+    const dataset = useWorkspaceStore.getState().project?.mapbiomas?.datasets[0];
+    expect(dataset?.sourceType).toBe("url");
+    expect(dataset?.year).toBe(2022);
+    expect(dataset?.addedAt).toBe(456);
+    expect(dataset?.id).toBeTruthy();
+    if (dataset?.sourceType === "url") {
+      expect(dataset.url).toBe("https://storage.googleapis.com/mapbiomas-public/2022.tif");
+    }
+
+    vi.restoreAllMocks();
+  });
+
+  it("removeMapBiomasDataset remove dataset por id", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    project.mapbiomas = {
+      config: {
+        targetShape: "EOO",
+        naturalClasses: [1, 3],
+        samplingStep: 4,
+      },
+      datasets: [
+        {
+          id: "d-file",
+          sourceType: "file",
+          year: 2020,
+          fileName: "a.tif",
+          addedAt: 10,
+        },
+        {
+          id: "d-url",
+          sourceType: "url",
+          year: 2021,
+          url: "https://storage.googleapis.com/mapbiomas-public/b.tif",
+          addedAt: 11,
+        },
+      ],
+    };
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+    useWorkspaceStore.getState().removeMapBiomasDataset("d-file");
+
+    const datasets = useWorkspaceStore.getState().project?.mapbiomas?.datasets ?? [];
+    expect(datasets).toHaveLength(1);
+    expect(datasets[0]?.id).toBe("d-url");
+    expect(useWorkspaceStore.getState().isDirty).toBe(true);
+  });
+
+  it("clearMapBiomasResults remove resultados mantendo config/datasets", async () => {
+    const repo = new InMemoryProjectRepository();
+    const project = projectFixture();
+    project.mapbiomas = {
+      config: {
+        targetShape: "EOO",
+        naturalClasses: [1, 3],
+        samplingStep: 4,
+      },
+      datasets: [
+        {
+          id: "d-1",
+          sourceType: "file",
+          year: 2020,
+          fileName: "raster.tif",
+          addedAt: 10,
+        },
+      ],
+      results: {
+        byYear: [
+          {
+            year: 2020,
+            naturalPercent: 45,
+            totalPixels: 100,
+            naturalPixels: 45,
+          },
+        ],
+        generatedAt: 11,
+      },
+    };
+    await repo.create(project);
+
+    const useWorkspaceStore = createWorkspaceStore(repo);
+    await useWorkspaceStore.getState().loadProject(project.id);
+    useWorkspaceStore.getState().clearMapBiomasResults();
+
+    const state = useWorkspaceStore.getState();
+    expect(state.project?.mapbiomas?.results).toBeUndefined();
+    expect(state.project?.mapbiomas?.datasets).toHaveLength(1);
+    expect(state.isDirty).toBe(true);
   });
 });

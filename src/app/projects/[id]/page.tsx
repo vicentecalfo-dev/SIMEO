@@ -40,7 +40,12 @@ import { moveLayer, setLayerOrder } from "@/lib/layer-order";
 import { useWorkspaceStore } from "@/state/workspace.store";
 import { ExportPanel } from "@/ui/components/export/ExportPanel";
 import { LayerOrderPanel } from "@/ui/components/map/LayerOrderPanel";
-import type { IucnCriterionBInput, IucnCriterionBItem } from "@/domain/entities/project";
+import { MapBiomasPanel } from "@/ui/features/mapbiomas/MapBiomasPanel";
+import type {
+  IucnCriterionBInput,
+  IucnCriterionBItem,
+  MapBiomasConfig,
+} from "@/domain/entities/project";
 
 const WorkspaceMapPanel = dynamic(
   () =>
@@ -126,6 +131,15 @@ export default function WorkspaceProjectPage() {
   const addOccurrence = useWorkspaceStore((state) => state.addOccurrence);
   const updateOccurrence = useWorkspaceStore((state) => state.updateOccurrence);
   const deleteOccurrence = useWorkspaceStore((state) => state.deleteOccurrence);
+  const setMapBiomasConfig = useWorkspaceStore((state) => state.setMapBiomasConfig);
+  const addMapBiomasDatasetFromUrl = useWorkspaceStore(
+    (state) => state.addMapBiomasDatasetFromUrl,
+  );
+  const addMapBiomasDatasetFromFile = useWorkspaceStore(
+    (state) => state.addMapBiomasDatasetFromFile,
+  );
+  const removeMapBiomasDataset = useWorkspaceStore((state) => state.removeMapBiomasDataset);
+  const clearMapBiomasResults = useWorkspaceStore((state) => state.clearMapBiomasResults);
   const saveProject = useWorkspaceStore((state) => state.saveProject);
 
   const [csvDraft, setCsvDraft] = useState<CsvDraft | null>(null);
@@ -286,6 +300,7 @@ export default function WorkspaceProjectPage() {
   const canComputeAOO = occurrencesForCompute.length >= 1;
   const pagedOccurrences = paginatedOccurrences.items;
   const iucnBInput = project?.assessment?.iucnB;
+  const mapbiomasState = project?.mapbiomas;
   const criterionB = useMemo(
     () =>
       inferCriterionB({
@@ -359,6 +374,37 @@ export default function WorkspaceProjectPage() {
     updateMapLayers({
       visibility: visibilityPatch,
     });
+  }
+
+  function handleMapBiomasConfigChange(patch: Partial<MapBiomasConfig>) {
+    setMapBiomasConfig(patch);
+    clearMapBiomasResults();
+  }
+
+  function handleMapBiomasAddDatasetFromFile(payload: {
+    year: number;
+    fileName: string;
+    label?: string;
+  }) {
+    addMapBiomasDatasetFromFile(payload);
+    clearMapBiomasResults();
+    setQualityMessage("Dataset MapBiomas (arquivo) adicionado como metadado.");
+  }
+
+  function handleMapBiomasAddDatasetFromUrl(payload: {
+    year: number;
+    url: string;
+    label?: string;
+  }) {
+    addMapBiomasDatasetFromUrl(payload);
+    clearMapBiomasResults();
+    setQualityMessage("Dataset MapBiomas (URL) adicionado como metadado.");
+  }
+
+  function handleMapBiomasRemoveDataset(datasetId: string) {
+    removeMapBiomasDataset(datasetId);
+    clearMapBiomasResults();
+    setQualityMessage("Dataset MapBiomas removido.");
   }
 
   function saveCriterionBAssessment(next: IucnCriterionBInput) {
@@ -852,6 +898,17 @@ export default function WorkspaceProjectPage() {
             onMoveLayer={handleMoveLayer}
             onToggleLayerVisibility={handleToggleLayerVisibility}
           />
+
+          {mapbiomasState && (
+            <MapBiomasPanel
+              config={mapbiomasState.config}
+              datasets={mapbiomasState.datasets}
+              onConfigChange={handleMapBiomasConfigChange}
+              onAddDatasetFromFile={handleMapBiomasAddDatasetFromFile}
+              onAddDatasetFromUrl={handleMapBiomasAddDatasetFromUrl}
+              onRemoveDataset={handleMapBiomasRemoveDataset}
+            />
+          )}
 
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <h3 className="text-sm font-semibold text-slate-900">

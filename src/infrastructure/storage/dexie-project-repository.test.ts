@@ -3,7 +3,11 @@ import {
   DEFAULT_MAP_LAYER_ORDER,
   normalizeMapLayerVisibility,
 } from "@/domain/entities/map-layers";
-import type { Project } from "@/domain/entities/project";
+import {
+  DEFAULT_MAPBIOMAS_NATURAL_CLASSES,
+  DEFAULT_MAPBIOMAS_SAMPLING_STEP,
+  type Project,
+} from "@/domain/entities/project";
 import { createDexieDb, type SimeoDexieDb } from "@/infrastructure/storage/dexie-db";
 import { DexieProjectRepository } from "@/infrastructure/storage/dexie-project-repository";
 
@@ -23,6 +27,15 @@ function projectFixture(data: Partial<Project> = {}): Project {
       },
     },
     occurrences: data.occurrences ?? [],
+    mapbiomas: data.mapbiomas ?? {
+      config: {
+        targetShape: "EOO",
+        naturalClasses: [...DEFAULT_MAPBIOMAS_NATURAL_CLASSES],
+        samplingStep: DEFAULT_MAPBIOMAS_SAMPLING_STEP,
+      },
+      datasets: [],
+      results: undefined,
+    },
   };
 }
 

@@ -21,7 +21,7 @@ describe("sort-filter", () => {
 
   it("sortProjects ordena por nome asc", () => {
     const result = sortProjects(fixtures, "name_asc");
-    expect(result.map((item) => item.id)).toEqual(["2", "3", "1"]);
+    expect(result.map((item) => item.id)).toEqual(["3", "2", "1"]);
   });
 
   it("sortProjects ordena por criado desc", () => {

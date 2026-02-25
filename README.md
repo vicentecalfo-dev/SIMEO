@@ -53,6 +53,7 @@ npm run test:coverage
 - `settings.mapLayers.order` usa ordem do topo para baixo (primeiro item fica acima).
 - Ordem padrão: `["occurrences","eoo","aoo"]` (pontos por cima).
 - A visibilidade das camadas também é persistida em `settings.mapLayers.visibility`.
+- MB-0: base estrutural do módulo MapBiomas Lite adicionada (`project.mapbiomas`), com painel de configuração/datasets (metadados) e worker stub sem análise raster.
 - Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
 - No workspace (`/projects/[id]`), nome do projeto e tamanho da célula AOO possuem autosave local com debounce.
 - Importação de ocorrências disponível no workspace para CSV (com mapeamento de colunas) e JSON simples.

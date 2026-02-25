@@ -29,5 +29,25 @@ export function normalizeProject(project: Project): Project {
         : undefined,
     },
     occurrences: normalizeOccurrences(withDefaults.occurrences),
+    mapbiomas: withDefaults.mapbiomas
+      ? {
+          config: {
+            targetShape: withDefaults.mapbiomas.config.targetShape,
+            naturalClasses: [...withDefaults.mapbiomas.config.naturalClasses],
+            samplingStep: withDefaults.mapbiomas.config.samplingStep,
+          },
+          datasets: withDefaults.mapbiomas.datasets.map((dataset) => ({
+            ...dataset,
+          })),
+          results: withDefaults.mapbiomas.results
+            ? {
+                byYear: withDefaults.mapbiomas.results.byYear.map((entry) => ({
+                  ...entry,
+                })),
+                generatedAt: withDefaults.mapbiomas.results.generatedAt,
+              }
+            : undefined,
+        }
+      : undefined,
   };
 }

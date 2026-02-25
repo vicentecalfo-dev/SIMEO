@@ -67,7 +67,13 @@ export function WorkspaceMapPanel({
         }}
       />
 
-      <MapCanvas onMapReady={setMap}>
+      <MapCanvas
+        onMapReady={setMap}
+        mapBiomasOverlay={{
+          visible: false,
+          opacity: 0.7,
+        }}
+      >
         <MapPanes order={layerOrder} />
         <AddPointHandler enabled={addPointMode} onAddPoint={onAddOccurrence} />
         <OccurrencesLayer
