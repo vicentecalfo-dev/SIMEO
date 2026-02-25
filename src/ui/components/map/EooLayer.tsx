@@ -22,8 +22,11 @@ export function EooLayer({ eoo, visible = false }: EooLayerProps) {
     return null;
   }
 
+  const layerKey = `${eoo.inputHash}:${eoo.pointsUsed}:${eoo.computedAt}`;
+
   return (
     <GeoJSON
+      key={layerKey}
       data={eoo.hull}
       pane={MAP_LAYER_PANES.eoo}
       style={() => ({

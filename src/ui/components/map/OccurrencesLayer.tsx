@@ -46,7 +46,7 @@ export function OccurrencesLayer({
 
         return (
           <CircleMarker
-            key={occurrence.id}
+            key={`${occurrence.id}:${status}`}
             center={[occurrence.lat, occurrence.lon]}
             radius={7}
             pane={MAP_LAYER_PANES.occurrences}

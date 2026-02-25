@@ -29,7 +29,7 @@ export function AooGridLayer({ aoo, visible = false }: AooGridLayerProps) {
     return null;
   }
 
-  const layerKey = `${aoo.inputHash}:${aoo.cellCount}:${aoo.cellSizeMeters}`;
+  const layerKey = `${aoo.inputHash}:${aoo.cellCount}:${aoo.cellSizeMeters}:${aoo.computedAt}`;
 
   return (
     <GeoJSON
