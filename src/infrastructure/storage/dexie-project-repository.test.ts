@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_MAP_LAYER_ORDER,
+  normalizeMapLayerVisibility,
+} from "@/domain/entities/map-layers";
 import type { Project } from "@/domain/entities/project";
 import { createDexieDb, type SimeoDexieDb } from "@/infrastructure/storage/dexie-db";
 import { DexieProjectRepository } from "@/infrastructure/storage/dexie-project-repository";
@@ -13,6 +17,10 @@ function projectFixture(data: Partial<Project> = {}): Project {
     updatedAt: data.updatedAt ?? now,
     settings: data.settings ?? {
       aooCellSizeMeters: 2000,
+      mapLayers: {
+        order: [...DEFAULT_MAP_LAYER_ORDER],
+        visibility: normalizeMapLayerVisibility(undefined),
+      },
     },
     occurrences: data.occurrences ?? [],
   };

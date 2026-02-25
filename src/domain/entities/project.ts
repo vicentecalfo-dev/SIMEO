@@ -1,6 +1,13 @@
 import type { Occurrence } from "@/domain/entities/occurrence";
 import { normalizeCalcStatus } from "@/domain/entities/occurrence";
+import {
+  DEFAULT_MAP_LAYER_ORDER,
+  normalizeMapLayerVisibility,
+  type MapLayerId,
+  type MapLayerVisibility,
+} from "@/domain/entities/map-layers";
 import type * as GeoJSON from "geojson";
+import { setLayerOrder } from "@/lib/layer-order";
 
 export interface EooResult {
   areaKm2: number;
@@ -51,6 +58,10 @@ export interface Project {
   updatedAt: number;
   settings: {
     aooCellSizeMeters: number;
+    mapLayers?: {
+      order: MapLayerId[];
+      visibility?: MapLayerVisibility;
+    };
   };
   occurrences: Occurrence[];
   results?: ProjectResults;
@@ -91,6 +102,10 @@ export function newProject(name: string): Project {
     updatedAt: now,
     settings: {
       aooCellSizeMeters: DEFAULT_AOO_CELL_SIZE_METERS,
+      mapLayers: {
+        order: [...DEFAULT_MAP_LAYER_ORDER],
+        visibility: normalizeMapLayerVisibility(undefined),
+      },
     },
     occurrences: [],
   };
@@ -133,7 +148,13 @@ export function withProjectDefaults(project: Project): Project {
   }
 
   const maybeProject = project as Project & {
-    settings?: { aooCellSizeMeters?: number };
+    settings?: {
+      aooCellSizeMeters?: number;
+      mapLayers?: {
+        order?: unknown;
+        visibility?: unknown;
+      };
+    };
     occurrences?: Occurrence[];
     results?: {
       eoo?: EooResult;
@@ -154,6 +175,15 @@ export function withProjectDefaults(project: Project): Project {
       };
     };
   };
+
+  const normalizedMapLayerOrder = setLayerOrder(
+    Array.isArray(maybeProject.settings?.mapLayers?.order)
+      ? (maybeProject.settings?.mapLayers?.order as MapLayerId[])
+      : [...DEFAULT_MAP_LAYER_ORDER],
+  );
+  const normalizedMapLayerVisibility = normalizeMapLayerVisibility(
+    maybeProject.settings?.mapLayers?.visibility,
+  );
 
   const baseEoo = maybeProject.results?.eoo;
   let eooResult: EooResult | undefined;
@@ -269,6 +299,10 @@ export function withProjectDefaults(project: Project): Project {
         Number(maybeProject.settings?.aooCellSizeMeters) > 0
         ? Number(maybeProject.settings?.aooCellSizeMeters)
         : DEFAULT_AOO_CELL_SIZE_METERS,
+      mapLayers: {
+        order: normalizedMapLayerOrder,
+        visibility: normalizedMapLayerVisibility,
+      },
     },
     occurrences: Array.isArray(maybeProject.occurrences)
       ? maybeProject.occurrences.map((occurrence) => ({

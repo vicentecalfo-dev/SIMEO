@@ -3,6 +3,7 @@
 import L from "leaflet";
 import { GeoJSON } from "react-leaflet";
 import type { AooResult } from "@/domain/entities/project";
+import { MAP_LAYER_PANES } from "@/ui/components/map/MapPanes";
 
 type AooGridLayerProps = {
   aoo?: AooResult;
@@ -34,6 +35,7 @@ export function AooGridLayer({ aoo, visible = false }: AooGridLayerProps) {
     <GeoJSON
       key={layerKey}
       data={aoo.grid}
+      pane={MAP_LAYER_PANES.aoo}
       style={() => ({
         color: "#2563eb",
         weight: 1,

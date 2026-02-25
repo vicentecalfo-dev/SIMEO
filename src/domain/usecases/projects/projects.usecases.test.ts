@@ -85,6 +85,7 @@ describe("project usecases", () => {
 
     expect(created.name).toBe("Projeto Base");
     expect(created.settings.aooCellSizeMeters).toBe(2000);
+    expect(created.settings.mapLayers?.order).toEqual(["occurrences", "eoo", "aoo"]);
     expect(created.occurrences).toEqual([]);
 
     let list = await listProjectsUseCase(repo);

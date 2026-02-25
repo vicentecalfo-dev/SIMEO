@@ -49,11 +49,13 @@ npm run test:coverage
 - O conceito de “localidade” depende da ameaça mais séria e do julgamento do assessor.
 - Marco 9: curadoria manual de ocorrências no workspace (adicionar no mapa, excluir e habilitar/desabilitar para cálculo).
 - Ocorrências desabilitadas são preservadas no projeto, mas ficam fora dos cálculos/hashes de EOO/AOO e aparecem em amarelo no mapa.
+- Marco 10: controle de camadas do mapa (Ocorrências, EOO, AOO) com ordem persistida por projeto.
+- `settings.mapLayers.order` usa ordem do topo para baixo (primeiro item fica acima).
+- Ordem padrão: `["occurrences","eoo","aoo"]` (pontos por cima).
+- A visibilidade das camadas também é persistida em `settings.mapLayers.visibility`.
 - Fluxo disponível em `/projects`: criar, abrir, renomear, duplicar e excluir projetos.
 - No workspace (`/projects/[id]`), nome do projeto e tamanho da célula AOO possuem autosave local com debounce.
 - Importação de ocorrências disponível no workspace para CSV (com mapeamento de colunas) e JSON simples.
 - Visualização de ocorrências no mapa (Leaflet) com toggle de camada e enquadramento de pontos.
 - Ferramentas de qualidade no workspace: remover inválidas, remover duplicadas e limpar ocorrências.
-- Persistência de ocorrências/resultados via IndexedDB será expandida nos próximos marcos.
-- Mapa será implementado nos próximos marcos.
-- O domínio terá testes auditáveis para cálculos de EOO/AOO nos próximos marcos.
+- Persistência de ocorrências/resultados via IndexedDB segue evoluindo nos marcos do projeto.

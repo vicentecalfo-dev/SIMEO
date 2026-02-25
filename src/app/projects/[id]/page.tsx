@@ -5,6 +5,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import {
+  normalizeMapLayerVisibility,
+  type MapLayerId,
+} from "@/domain/entities/map-layers";
 import type { ImportCsvResult, CsvMapping } from "@/domain/usecases/occurrences/import-occurrences-csv";
 import {
   mapRowsToOccurrences,
@@ -32,8 +36,10 @@ import {
 import { selectOccurrencesForCompute } from "@/domain/usecases/occurrences/select-occurrences-for-compute";
 import { validateLatLon } from "@/domain/value-objects/latlon";
 import { debounce } from "@/lib/debounce";
+import { moveLayer, setLayerOrder } from "@/lib/layer-order";
 import { useWorkspaceStore } from "@/state/workspace.store";
 import { ExportPanel } from "@/ui/components/export/ExportPanel";
+import { LayerOrderPanel } from "@/ui/components/map/LayerOrderPanel";
 import type { IucnCriterionBInput, IucnCriterionBItem } from "@/domain/entities/project";
 
 const WorkspaceMapPanel = dynamic(
@@ -137,9 +143,6 @@ export default function WorkspaceProjectPage() {
     useState<OccurrenceValidityFilter>("all");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [showOccurrences, setShowOccurrences] = useState(true);
-  const [showEOO, setShowEOO] = useState(false);
-  const [showAOO, setShowAOO] = useState(false);
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const debouncedSave = useMemo(
@@ -200,15 +203,6 @@ export default function WorkspaceProjectPage() {
     setPage(1);
   }, [occurrenceQuery, occurrenceValidity, project?.occurrences.length]);
 
-  useEffect(() => {
-    if (!project) {
-      return;
-    }
-
-    setShowEOO(Boolean(project.results?.eoo));
-    setShowAOO(Boolean(project.results?.aoo));
-  }, [project?.id]);
-
   const quality = useMemo(() => {
     if (!project) {
       return {
@@ -252,6 +246,18 @@ export default function WorkspaceProjectPage() {
 
     return isAooStale(project);
   }, [project]);
+
+  const layerOrder = useMemo(
+    () => setLayerOrder(project?.settings.mapLayers?.order ?? []),
+    [project?.settings.mapLayers?.order],
+  );
+  const layerVisibility = useMemo(
+    () => normalizeMapLayerVisibility(project?.settings.mapLayers?.visibility),
+    [project?.settings.mapLayers?.visibility],
+  );
+  const showOccurrences = layerVisibility.occurrences;
+  const showEOO = layerVisibility.eoo;
+  const showAOO = layerVisibility.aoo;
 
   const filteredOccurrences = useMemo(() => {
     if (!project) {
@@ -303,6 +309,57 @@ export default function WorkspaceProjectPage() {
       project?.settings.aooCellSizeMeters,
     ],
   );
+
+  function updateMapLayers(params: {
+    order?: MapLayerId[];
+    visibility?: Partial<Record<MapLayerId, boolean>>;
+  }) {
+    const latestProject = useWorkspaceStore.getState().project;
+
+    if (!latestProject) {
+      return;
+    }
+
+    const currentOrder = setLayerOrder(latestProject.settings.mapLayers?.order ?? []);
+    const currentVisibility = normalizeMapLayerVisibility(
+      latestProject.settings.mapLayers?.visibility,
+    );
+
+    setProject({
+      settings: {
+        aooCellSizeMeters: latestProject.settings.aooCellSizeMeters,
+        mapLayers: {
+          order: params.order ? setLayerOrder(params.order) : currentOrder,
+          visibility: params.visibility
+            ? normalizeMapLayerVisibility({
+                ...currentVisibility,
+                ...params.visibility,
+              })
+            : currentVisibility,
+        },
+      },
+    });
+  }
+
+  function handleMoveLayer(layer: MapLayerId, direction: "up" | "down") {
+    const latestOrder = setLayerOrder(
+      useWorkspaceStore.getState().project?.settings.mapLayers?.order ?? [],
+    );
+
+    updateMapLayers({
+      order: moveLayer(latestOrder, layer, direction),
+    });
+  }
+
+  function handleToggleLayerVisibility(layer: MapLayerId, visible: boolean) {
+    const visibilityPatch: Partial<Record<MapLayerId, boolean>> = {
+      [layer]: visible,
+    };
+
+    updateMapLayers({
+      visibility: visibilityPatch,
+    });
+  }
 
   function saveCriterionBAssessment(next: IucnCriterionBInput) {
     if (!project) {
@@ -450,7 +507,11 @@ export default function WorkspaceProjectPage() {
 
     try {
       await computeEOO();
-      setShowEOO(true);
+      updateMapLayers({
+        visibility: {
+          eoo: true,
+        },
+      });
       setQualityMessage("EOO calculada e salva no projeto.");
     } catch {
       // erro já exposto em computeError no store
@@ -466,7 +527,11 @@ export default function WorkspaceProjectPage() {
 
     try {
       await computeAOO();
-      setShowAOO(true);
+      updateMapLayers({
+        visibility: {
+          aoo: true,
+        },
+      });
       setQualityMessage("AOO calculada e salva no projeto.");
     } catch {
       // erro já exposto em computeError no store
@@ -523,8 +588,12 @@ export default function WorkspaceProjectPage() {
       normalizeCalcStatus(target.calcStatus) === "enabled" ? "disabled" : "enabled";
 
     updateOccurrence(id, { calcStatus: nextStatus });
-    setShowEOO(true);
-    setShowAOO(true);
+    updateMapLayers({
+      visibility: {
+        eoo: true,
+        aoo: true,
+      },
+    });
     setQualityMessage(
       nextStatus === "enabled"
         ? "Ponto habilitado para cálculo. EOO/AOO em recálculo automático."
@@ -538,8 +607,12 @@ export default function WorkspaceProjectPage() {
     }
 
     deleteOccurrence(id);
-    setShowEOO(true);
-    setShowAOO(true);
+    updateMapLayers({
+      visibility: {
+        eoo: true,
+        aoo: true,
+      },
+    });
     setQualityMessage("Ponto removido. EOO/AOO em recálculo automático.");
   }
 
@@ -553,8 +626,12 @@ export default function WorkspaceProjectPage() {
     };
 
     addOccurrence(newOccurrence);
-    setShowEOO(true);
-    setShowAOO(true);
+    updateMapLayers({
+      visibility: {
+        eoo: true,
+        aoo: true,
+      },
+    });
     setQualityMessage("Ponto adicionado manualmente. EOO/AOO em recálculo automático.");
   }
 
@@ -713,8 +790,7 @@ export default function WorkspaceProjectPage() {
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
                 checked={showEOO}
-                onChange={(event) => setShowEOO(event.target.checked)}
-                disabled={!eooResult || !eooResult.hull}
+                onChange={(event) => handleToggleLayerVisibility("eoo", event.target.checked)}
               />
               Mostrar EOO
             </label>
@@ -723,8 +799,7 @@ export default function WorkspaceProjectPage() {
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
                 checked={showAOO}
-                onChange={(event) => setShowAOO(event.target.checked)}
-                disabled={!aooResult || aooResult.cellCount === 0}
+                onChange={(event) => handleToggleLayerVisibility("aoo", event.target.checked)}
               />
               Mostrar AOO
             </label>
@@ -770,6 +845,13 @@ export default function WorkspaceProjectPage() {
               </p>
             )}
           </div>
+
+          <LayerOrderPanel
+            order={layerOrder}
+            visibility={layerVisibility}
+            onMoveLayer={handleMoveLayer}
+            onToggleLayerVisibility={handleToggleLayerVisibility}
+          />
 
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <h3 className="text-sm font-semibold text-slate-900">
@@ -1028,12 +1110,20 @@ export default function WorkspaceProjectPage() {
             <Card.Main className="space-y-3 pb-6">
               <WorkspaceMapPanel
                 occurrences={project.occurrences}
-                showOccurrences={showOccurrences}
-                showEOO={showEOO}
-                showAOO={showAOO}
+                layerOrder={layerOrder}
+                layerVisibility={layerVisibility}
                 eoo={eooResult}
                 aoo={aooResult}
-                onToggleOccurrences={() => setShowOccurrences((current) => !current)}
+                onToggleOccurrences={() => {
+                  const latestVisibility = normalizeMapLayerVisibility(
+                    useWorkspaceStore.getState().project?.settings.mapLayers?.visibility,
+                  );
+
+                  handleToggleLayerVisibility(
+                    "occurrences",
+                    !latestVisibility.occurrences,
+                  );
+                }}
                 onAddOccurrence={handleAddOccurrenceFromMap}
                 onToggleOccurrenceCalc={handleToggleOccurrenceCalc}
                 onDeleteOccurrence={handleDeleteOccurrence}

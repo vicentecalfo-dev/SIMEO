@@ -7,6 +7,7 @@ import {
   type OccurrenceCalcStatus,
 } from "@/domain/entities/occurrence";
 import { validateLatLon } from "@/domain/value-objects/latlon";
+import { MAP_LAYER_PANES } from "@/ui/components/map/MapPanes";
 
 type OccurrencesLayerProps = {
   occurrences: Occurrence[];
@@ -48,6 +49,7 @@ export function OccurrencesLayer({
             key={occurrence.id}
             center={[occurrence.lat, occurrence.lon]}
             radius={7}
+            pane={MAP_LAYER_PANES.occurrences}
             pathOptions={{
               color: markerColor,
               fillColor: markerColor,

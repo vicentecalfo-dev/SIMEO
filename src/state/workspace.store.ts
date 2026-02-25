@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { normalizeCalcStatus } from "@/domain/entities/occurrence";
+import { normalizeMapLayerVisibility } from "@/domain/entities/map-layers";
 import type { Project } from "@/domain/entities/project";
 import type { ProjectRepository } from "@/domain/ports/project-repository";
 import { hashOccurrencesForAOO } from "@/domain/usecases/hash/hash-occurrences-for-aoo";
@@ -14,6 +15,7 @@ import { normalizeProject } from "@/domain/usecases/projects/normalize-project";
 import { updateProject } from "@/domain/usecases/projects/update-project";
 import { geoComputeService } from "@/infrastructure/geo/geo-compute-service";
 import { createProjectRepository } from "@/infrastructure/storage/dexie-project-repository";
+import { setLayerOrder } from "@/lib/layer-order";
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -145,6 +147,24 @@ export const createWorkspaceStore = (injectedRepo?: ProjectRepository) =>
               ? {
                   ...state.project.settings,
                   ...partialUpdate.settings,
+                  mapLayers:
+                    partialUpdate.settings.mapLayers !== undefined
+                      ? {
+                          order:
+                            partialUpdate.settings.mapLayers.order !== undefined
+                              ? setLayerOrder(partialUpdate.settings.mapLayers.order)
+                              : setLayerOrder(state.project.settings.mapLayers?.order ?? []),
+                          visibility:
+                            partialUpdate.settings.mapLayers.visibility !== undefined
+                              ? normalizeMapLayerVisibility({
+                                  ...state.project.settings.mapLayers?.visibility,
+                                  ...partialUpdate.settings.mapLayers.visibility,
+                                })
+                              : normalizeMapLayerVisibility(
+                                  state.project.settings.mapLayers?.visibility,
+                                ),
+                        }
+                      : state.project.settings.mapLayers,
                 }
               : state.project.settings,
             occurrences: partialUpdate.occurrences

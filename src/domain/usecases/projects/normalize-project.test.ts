@@ -53,7 +53,45 @@ describe("normalizeProject", () => {
     const normalized = normalizeProject(broken);
 
     expect(normalized.settings.aooCellSizeMeters).toBeGreaterThan(0);
+    expect(normalized.settings.mapLayers?.order).toEqual([
+      "occurrences",
+      "eoo",
+      "aoo",
+    ]);
+    expect(normalized.settings.mapLayers?.visibility).toEqual({
+      occurrences: true,
+      eoo: true,
+      aoo: true,
+    });
     expect(Array.isArray(normalized.occurrences)).toBe(true);
     expect(normalized.occurrences).toHaveLength(0);
+  });
+
+  it("normaliza order/visibility de mapLayers", () => {
+    const project = {
+      id: "proj-4",
+      name: "Projeto map",
+      createdAt: 100,
+      updatedAt: 100,
+      settings: {
+        aooCellSizeMeters: 2000,
+        mapLayers: {
+          order: ["eoo", "eoo", "occurrences"],
+          visibility: {
+            occurrences: false,
+          },
+        },
+      },
+      occurrences: [],
+    } as unknown as Project;
+
+    const normalized = normalizeProject(project);
+
+    expect(normalized.settings.mapLayers?.order).toEqual(["eoo", "occurrences", "aoo"]);
+    expect(normalized.settings.mapLayers?.visibility).toEqual({
+      occurrences: false,
+      eoo: true,
+      aoo: true,
+    });
   });
 });

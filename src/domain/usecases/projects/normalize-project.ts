@@ -19,6 +19,14 @@ export function normalizeProject(project: Project): Project {
     ...withDefaults,
     settings: {
       ...withDefaults.settings,
+      mapLayers: withDefaults.settings.mapLayers
+        ? {
+            order: [...withDefaults.settings.mapLayers.order],
+            visibility: withDefaults.settings.mapLayers.visibility
+              ? { ...withDefaults.settings.mapLayers.visibility }
+              : undefined,
+          }
+        : undefined,
     },
     occurrences: normalizeOccurrences(withDefaults.occurrences),
   };

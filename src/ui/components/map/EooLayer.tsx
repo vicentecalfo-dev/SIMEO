@@ -3,6 +3,7 @@
 import { GeoJSON, Popup } from "react-leaflet";
 import type { EooResult } from "@/domain/entities/project";
 import { formatKm2 } from "@/domain/usecases/eoo/compute-eoo";
+import { MAP_LAYER_PANES } from "@/ui/components/map/MapPanes";
 
 type EooLayerProps = {
   eoo?: EooResult;
@@ -24,6 +25,7 @@ export function EooLayer({ eoo, visible = false }: EooLayerProps) {
   return (
     <GeoJSON
       data={eoo.hull}
+      pane={MAP_LAYER_PANES.eoo}
       style={() => ({
         color: "#b42318",
         weight: 2,

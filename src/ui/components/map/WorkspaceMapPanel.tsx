@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
+import type { MapLayerId, MapLayerVisibility } from "@/domain/entities/map-layers";
 import type { Occurrence } from "@/domain/entities/occurrence";
 import type { AooResult, EooResult } from "@/domain/entities/project";
 import { validateLatLon } from "@/domain/value-objects/latlon";
@@ -9,15 +10,15 @@ import { AddPointHandler } from "@/ui/components/map/AddPointHandler";
 import { AooGridLayer } from "@/ui/components/map/AooGridLayer";
 import { EooLayer } from "@/ui/components/map/EooLayer";
 import { MapCanvas } from "@/ui/components/map/MapCanvas";
+import { MapPanes } from "@/ui/components/map/MapPanes";
 import { MapToolbar } from "@/ui/components/map/MapToolbar";
 import { OccurrencesLayer } from "@/ui/components/map/OccurrencesLayer";
 import { useMapFitBounds } from "@/ui/components/map/useMapFitBounds";
 
 type WorkspaceMapPanelProps = {
   occurrences: Occurrence[];
-  showOccurrences: boolean;
-  showEOO: boolean;
-  showAOO: boolean;
+  layerOrder: MapLayerId[];
+  layerVisibility: MapLayerVisibility;
   eoo?: EooResult;
   aoo?: AooResult;
   onToggleOccurrences: () => void;
@@ -28,9 +29,8 @@ type WorkspaceMapPanelProps = {
 
 export function WorkspaceMapPanel({
   occurrences,
-  showOccurrences,
-  showEOO,
-  showAOO,
+  layerOrder,
+  layerVisibility,
   eoo,
   aoo,
   onToggleOccurrences,
@@ -41,6 +41,10 @@ export function WorkspaceMapPanel({
   const [map, setMap] = useState<LeafletMap | null>(null);
   const [addPointMode, setAddPointMode] = useState(false);
   const fitBounds = useMapFitBounds();
+
+  const showOccurrences = layerVisibility.occurrences;
+  const showEOO = layerVisibility.eoo;
+  const showAOO = layerVisibility.aoo;
 
   const validOccurrences = useMemo(
     () => occurrences.filter((occurrence) => validateLatLon(occurrence.lat, occurrence.lon).ok),
@@ -64,6 +68,7 @@ export function WorkspaceMapPanel({
       />
 
       <MapCanvas onMapReady={setMap}>
+        <MapPanes order={layerOrder} />
         <AddPointHandler enabled={addPointMode} onAddPoint={onAddOccurrence} />
         <OccurrencesLayer
           occurrences={validOccurrences}
